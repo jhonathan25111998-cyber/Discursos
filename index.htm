@@ -10,16 +10,15 @@
         import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
-        // SUA CONFIG DO FIREBASE JÁ ESTÁ AQUI
+        // CONFIG DO PROJETO NOVO DISCURSOS
         const firebaseConfig = {
-          apiKey: "AIzaSyDWUCRDmwf5_332izdNMCRsrjTG5z4Ho9g",
-          authDomain: "fluxo-app-c71ec.firebaseapp.com",
-          databaseURL: "https://fluxo-app-c71ec-default-rtdb.firebaseio.com",
-          projectId: "fluxo-app-c71ec",
-          storageBucket: "fluxo-app-c71ec.firebasestorage.app",
-          messagingSenderId: "942507349330",
-          appId: "1:942507349330:web:97306101e023bc24ca568b",
-          measurementId: "G-5NCXT77PM6"
+          apiKey: "AIzaSyDITvwMh4u-IA9gNht1WTlX6jxUBPj7c0I",
+          authDomain: "discursos-6903f.firebaseapp.com",
+          projectId: "discursos-6903f",
+          storageBucket: "discursos-6903f.firebasestorage.app",
+          messagingSenderId: "729085489214",
+          appId: "1:729085489214:web:c8b617657d9af0fd31616f",
+          measurementId: "G-N9B3HTBKNH"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -212,24 +211,24 @@
             
             if (currentTab === 'visitantes' || currentTab === 'enviados') {
                 html = `
-                    <div><label class="block text-sm font-medium mb-1">Data</label><input type="date" id="data" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Orador</label><input type="text" id="orador" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Congregação</label><input type="text" id="congregacao" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Número do Tema</label><input type="text" id="temaNumero" class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Título do Tema</label><input type="text" id="tema" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Observações</label><textarea id="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>
+                    <div><label class="block text-sm font-medium mb-1">Data</label><input type="date" id="data" name="data" required class="w-full px-3 py-2 border rounded-lg"></div>
+                    <div><label class="block text-sm font-medium mb-1">Orador</label><input type="text" id="orador" name="orador" required class="w-full px-3 py-2 border rounded-lg"></div>
+                    <div><label class="block text-sm font-medium mb-1">Congregação</label><input type="text" id="congregacao" name="congregacao" required class="w-full px-3 py-2 border rounded-lg"></div>
+                    <div><label class="block text-sm font-medium mb-1">Número do Tema</label><input type="text" id="temaNumero" name="temaNumero" class="w-full px-3 py-2 border rounded-lg"></div>
+                    <div><label class="block text-sm font-medium mb-1">Título do Tema</label><input type="text" id="tema" name="tema" required class="w-full px-3 py-2 border rounded-lg"></div>
+                    <div><label class="block text-sm font-medium mb-1">Observações</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>
                 `;
             } else if (currentTab === 'temas') {
                 html = `
-                    <div><label class="block text-sm font-medium mb-1">Número</label><input type="text" id="numero" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Título</label><input type="text" id="titulo" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Observações</label><textarea id="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>
+                    <div><label class="block text-sm font-medium mb-1">Número</label><input type="text" id="numero" name="numero" required class="w-full px-3 py-2 border rounded-lg"></div>
+                    <div><label class="block text-sm font-medium mb-1">Título</label><input type="text" id="titulo" name="titulo" required class="w-full px-3 py-2 border rounded-lg"></div>
+                    <div><label class="block text-sm font-medium mb-1">Observações</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>
                 `;
             } else if (currentTab === 'oradores') {
                 html = `
-                    <div><label class="block text-sm font-medium mb-1">Nome</label><input type="text" id="nome" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Temas (separados por vírgula)</label><input type="text" id="temas" class="w-full px-3 py-2 border rounded-lg" placeholder="Ex: 12, 45, 78"></div>
-                    <div><label class="block text-sm font-medium mb-1">Observações</label><textarea id="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>
+                    <div><label class="block text-sm font-medium mb-1">Nome</label><input type="text" id="nome" name="nome" required class="w-full px-3 py-2 border rounded-lg"></div>
+                    <div><label class="block text-sm font-medium mb-1">Temas (separados por vírgula)</label><input type="text" id="temas" name="temas" class="w-full px-3 py-2 border rounded-lg" placeholder="Ex: 12, 45, 78"></div>
+                    <div><label class="block text-sm font-medium mb-1">Observações</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>
                 `;
             }
             formFields.innerHTML = html;
@@ -417,11 +416,11 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">Email</label>
-                    <input type="email" id="loginEmail" required class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="seu@email.com">
+                    <input type="email" id="loginEmail" autocomplete="username" required class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="seu@email.com">
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Senha</label>
-                    <input type="password" id="loginPassword" required class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="••••••••">
+                    <input type="password" id="loginPassword" autocomplete="current-password" required class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="••••••••">
                 </div>
                 <div class="flex gap-2 pt-2">
                     <button onclick="login()" class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Entrar</button>
