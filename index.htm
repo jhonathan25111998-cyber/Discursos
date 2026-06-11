@@ -5,10 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Discursos Públicos - Samas</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
+        @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    </style>
 </head>
 <body class="bg-slate-50">
     <div class="min-h-screen">
-        <header class="bg-white shadow-sm border-b">
+        <header class="bg-white shadow-sm border-b sticky top-0 z-10">
             <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between items-center">
                     <div>
@@ -33,27 +37,13 @@
                     <button id="tab-oradores" onclick="switchTab('oradores')" class="tab-btn px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">Oradores Samas Temas</button>
                 </div>
                 
-                <!-- Filtros que mudam conforme a aba -->
-                <div id="filtrosVisitantes" class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
                     <div class="flex gap-2">
-                        <button onclick="navegarMes(-1)" class="px-3 py-2 bg-slate-200 rounded-lg hover:bg-slate-300 text-sm font-medium">◀ Mês Ant.</button>
-                        <button onclick="resetarMes()" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium flex-1">📅 Mês Atual</button>
-                        <button onclick="navegarMes(1)" class="px-3 py-2 bg-slate-200 rounded-lg hover:bg-slate-300 text-sm font-medium">Mês Seg. ▶</button>
+                        <button onclick="navegarMes(-1)" class="px-3 py-2 bg-slate-200 rounded-lg text-sm">◀</button>
+                        <button onclick="resetarMes()" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm flex-1">📅 Mês Atual</button>
+                        <button onclick="navegarMes(1)" class="px-3 py-2 bg-slate-200 rounded-lg text-sm">▶</button>
                     </div>
                     <div>
-                        <select id="ordenacao" onchange="ordenarDados()" class="w-full px-3 py-2 border rounded-lg text-sm">
-                            <option value="asc">📅 Data (crescente)</option>
-                            <option value="desc">📅 Data (decrescente)</option>
-                        </select>
-                    </div>
-                    <div><input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Buscar..." class="w-full px-3 py-2 border rounded-lg text-sm"></div>
-                    <div><button id="addBtn" onclick="openModal()" class="hidden w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">+ Adicionar</button></div>
-                </div>
-
-                <!-- Filtros ESPECÍFICOS para a aba de Temas -->
-                <div id="filtrosTemas" class="hidden grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-                    <div>
-                        <label class="text-xs text-slate-500 block mb-1">Ordenar Temas por</label>
                         <select id="ordenacaoTemas" onchange="ordenarTemas()" class="w-full px-3 py-2 border rounded-lg text-sm">
                             <option value="numeroAsc">🔢 Número (1 ao 197)</option>
                             <option value="numeroDesc">🔢 Número (197 ao 1)</option>
@@ -62,16 +52,25 @@
                         </select>
                     </div>
                     <div>
-                        <label class="text-xs text-slate-500 block mb-1">Filtrar por uso</label>
                         <select id="filtroUsoTemas" onchange="ordenarTemas()" class="w-full px-3 py-2 border rounded-lg text-sm">
                             <option value="todos">📋 Todos os temas</option>
-                            <option value="nuncaUsados">🆕 Nunca usados (0 vezes)</option>
-                            <option value="poucoUsados">⚠️ Pouco usados (1-2 vezes)</option>
-                            <option value="muitoUsados">🔥 Muito usados (3+ vezes)</option>
+                            <option value="nuncaUsados">🆕 Nunca usados (0)</option>
+                            <option value="poucoUsados">⚠️ Pouco usados (1-2)</option>
+                            <option value="muitoUsados">🔥 Muito usados (3+)</option>
                         </select>
                     </div>
-                    <div><input type="text" id="searchTemas" onkeyup="filtrarTemas()" placeholder="Buscar por número ou título..." class="w-full px-3 py-2 border rounded-lg text-sm"></div>
-                    <div><button onclick="exportarTemas()" class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium">📎 Exportar Temas</button></div>
+                    <div>
+                        <input type="text" id="searchTemas" onkeyup="filtrarTemas()" placeholder="Buscar tema..." class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <button id="addBtn" onclick="openModal()" class="hidden w-full px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium">+ Adicionar</button>
+                    </div>
+                </div>
+                
+                <!-- Indicador de carregamento -->
+                <div id="loadingIndicator" class="hidden mb-4 p-2 bg-blue-100 text-blue-700 rounded-lg text-sm flex items-center gap-2">
+                    <div class="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Carregando dados do Firebase...</span>
                 </div>
                 
                 <div class="flex justify-between items-center">
@@ -80,25 +79,33 @@
                 </div>
             </div>
 
-            <div id="content-visitantes" class="tab-content bg-white rounded-lg shadow-sm overflow-hidden">
-                <div class="overflow-x-auto"><table class="w-full"><thead class="bg-slate-100 border-b"><tr><th>Data/Horário</th><th>Orador</th><th>Congregação</th><th>Tema</th><th>Obs</th><th>Ações</th></tr></thead><tbody id="tbody-visitantes"></tbody></table></div>
+            <div id="content-temas" class="tab-content bg-white rounded-lg shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-slate-100 border-b">
+                            <tr><th class="px-4 py-3 text-left w-16">Nº</th><th class="px-4 py-3 text-left">Título</th><th class="px-4 py-3 text-center w-24">Usos</th><th class="px-4 py-3 text-left">Obs</th><th class="px-4 py-3 text-right w-32">Ações</th></tr>
+                        </thead>
+                        <tbody id="tbody-temas">
+                            <tr><td colspan="5" class="text-center py-8"><div class="skeleton h-8 w-full rounded"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <div id="content-enviados" class="tab-content bg-white rounded-lg shadow-sm overflow-hidden hidden">
-                <div class="overflow-x-auto"><table class="w-full"><thead class="bg-slate-100 border-b"><tr><th>Data/Horário</th><th>Orador</th><th>Congregação</th><th>Tema</th><th>Obs</th><th>Ações</th></tr></thead><tbody id="tbody-enviados"></tbody></table></div>
+            <div id="content-visitantes" class="tab-content hidden bg-white rounded-lg shadow-sm overflow-hidden">
+                <div class="overflow-x-auto"><table class="w-full"><thead class="bg-slate-100 border-b"><tr><th>Data</th><th>Orador</th><th>Congregação</th><th>Tema</th><th>Obs</th><th>Ações</th></tr></thead><tbody id="tbody-visitantes"><tr><td colspan="6" class="text-center py-8"><div class="skeleton h-8 w-full rounded"></div></td></tr></tbody></table></div>
             </div>
 
-            <div id="content-temas" class="tab-content bg-white rounded-lg shadow-sm overflow-hidden hidden">
-                <div class="overflow-x-auto"><table class="w-full"><thead class="bg-slate-100 border-b"><tr><th class="px-4 py-3 text-left">Nº</th><th class="px-4 py-3 text-left">Título do Tema</th><th class="px-4 py-3 text-center">Usos</th><th class="px-4 py-3 text-left">Obs</th><th class="px-4 py-3 text-right">Ações</th></tr></thead><tbody id="tbody-temas"></tbody></table></div>
+            <div id="content-enviados" class="tab-content hidden bg-white rounded-lg shadow-sm overflow-hidden">
+                <div class="overflow-x-auto"><table class="w-full"><thead class="bg-slate-100 border-b"><tr><th>Data</th><th>Orador</th><th>Congregação</th><th>Tema</th><th>Obs</th><th>Ações</th></tr></thead><tbody id="tbody-enviados"><tr><td colspan="6" class="text-center py-8"><div class="skeleton h-8 w-full rounded"></div></td></tr></tbody></table></div>
             </div>
 
-            <div id="content-oradores" class="tab-content bg-white rounded-lg shadow-sm overflow-hidden hidden">
-                <div class="overflow-x-auto"><table class="w-full"><thead class="bg-slate-100 border-b"><tr><th>Nome</th><th>Temas</th><th>Obs</th><th>Ações</th></tr></thead><tbody id="tbody-oradores"></tbody></table></div>
+            <div id="content-oradores" class="tab-content hidden bg-white rounded-lg shadow-sm overflow-hidden">
+                <div class="overflow-x-auto"><table class="w-full"><thead class="bg-slate-100 border-b"><tr><th>Nome</th><th>Temas</th><th>Obs</th><th>Ações</th></tr></thead><tbody id="tbody-oradores"><tr><td colspan="4" class="text-center py-8"><div class="skeleton h-8 w-full rounded"></div></td></tr></tbody></table></div>
             </div>
         </main>
     </div>
 
-    <!-- Modais -->
     <div id="loginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"><div class="bg-white rounded-lg max-w-md w-full p-6"><h2 class="text-xl font-bold mb-4">Entrar</h2><div><input type="email" id="loginEmail" placeholder="Email" class="w-full border rounded-lg p-2 mb-3"><input type="password" id="loginPassword" placeholder="Senha" class="w-full border rounded-lg p-2 mb-3"><button onclick="login()" class="w-full bg-blue-600 text-white py-2 rounded-lg">Entrar</button><button onclick="closeModal('loginModal')" class="w-full mt-2 bg-slate-200 py-2 rounded-lg">Cancelar</button></div></div></div>
 
     <div id="formModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"><div class="bg-white rounded-lg max-w-2xl w-full p-6"><h2 id="modalTitle" class="text-xl font-bold mb-4">Adicionar</h2><form id="itemForm" onsubmit="saveItem(event)"><div id="formFields"></div><div class="flex gap-2 mt-4"><button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded-lg">Salvar</button><button type="button" onclick="closeModal('formModal')" class="flex-1 bg-slate-200 py-2 rounded-lg">Cancelar</button></div></form></div></div>
@@ -108,16 +115,36 @@
         import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, writeBatch } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
-        const firebaseConfig = { apiKey: "AIzaSyDITvwMh4u-IA9gNht1WTlX6jxUBPj7c0I", authDomain: "discursos-6903f.firebaseapp.com", projectId: "discursos-6903f", storageBucket: "discursos-6903f.firebasestorage.app", messagingSenderId: "729085489214", appId: "1:729085489214:web:c8b617657d9af0fd31616f" };
+        const firebaseConfig = {
+            apiKey: "AIzaSyDITvwMh4u-IA9gNht1WTlX6jxUBPj7c0I",
+            authDomain: "discursos-6903f.firebaseapp.com",
+            projectId: "discursos-6903f",
+            storageBucket: "discursos-6903f.firebasestorage.app",
+            messagingSenderId: "729085489214",
+            appId: "1:729085489214:web:c8b617657d9af0fd31616f"
+        };
+        
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        let currentUser = null, currentTab = 'visitantes', editId = null, unsubscribeSnapshot = null;
-        let dadosOriginais = [], dadosFiltrados = [], mesAtual = new Date();
-        const collections = { visitantes: 'visitantes', enviados: 'enviados', temas: 'temas', oradores: 'oradoresLocais' };
+        let currentUser = null;
+        let currentTab = 'temas';
+        let editId = null;
+        let unsubscribeSnapshot = null;
+        let dadosTemas = [];
+        let dadosFiltradosTemas = [];
+        let isLoading = false;
 
-        onAuthStateChanged(auth, (user) => { currentUser = user; updateUI(); if (user) loadData(); });
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            updateUI();
+            if (user) {
+                carregarTemas();
+            } else {
+                document.getElementById('tbody-temas').innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500">🔒 Faça login para ver os temas</td></tr>`;
+            }
+        });
 
         function updateUI() {
             document.getElementById('loginBtn').classList.toggle('hidden', currentUser);
@@ -126,82 +153,150 @@
             if(currentUser) document.getElementById('userEmail').textContent = currentUser.email;
         }
 
-        window.login = async () => { try { await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPassword').value); closeModal('loginModal'); } catch(e) { alert('Erro: '+e.message); } };
+        window.login = async () => {
+            try {
+                await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
+                closeModal('loginModal');
+            } catch(e) { alert('Erro: '+e.message); }
+        };
+        
         window.logout = async () => { await signOut(auth); if(unsubscribeSnapshot) unsubscribeSnapshot(); };
         window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
         window.openLoginModal = () => document.getElementById('loginModal').classList.remove('hidden');
 
-        function loadData() {
-            if(!currentUser) return;
-            if(unsubscribeSnapshot) unsubscribeSnapshot();
-            unsubscribeSnapshot = onSnapshot(collection(db, collections[currentTab]), (snapshot) => {
-                dadosOriginais = [];
-                snapshot.forEach(doc => dadosOriginais.push({ id: doc.id, ...doc.data() }));
-                if(currentTab === 'temas') {
-                    carregarUsosTemas();
-                } else {
-                    filtrarPorMes();
-                }
-            });
-        }
-
-        async function carregarUsosTemas() {
-            // Buscar usos reais dos visitantes e enviados
-            const visitantesSnap = await getDocs(collection(db, 'visitantes'));
-            const enviadosSnap = await getDocs(collection(db, 'enviados'));
-            const contagem = {};
-            visitantesSnap.forEach(doc => { const num = doc.data().temaNumero; if(num) contagem[num] = (contagem[num] || 0) + 1; });
-            enviadosSnap.forEach(doc => { const num = doc.data().temaNumero; if(num) contagem[num] = (contagem[num] || 0) + 1; });
-            
-            for(const tema of dadosOriginais) {
-                const usos = contagem[tema.numero] || 0;
-                if(tema.usos !== usos && tema.id) await updateDoc(doc(db, 'temas', tema.id), { usos });
-                tema.usos = usos;
+        function mostrarLoading(show) {
+            const indicator = document.getElementById('loadingIndicator');
+            if(show) {
+                indicator.classList.remove('hidden');
+                isLoading = true;
+            } else {
+                indicator.classList.add('hidden');
+                isLoading = false;
             }
-            ordenarTemas();
         }
 
-        function ordenarTemas() {
+        async function carregarTemas() {
+            mostrarLoading(true);
+            
+            try {
+                // Usar cache do navegador para acelerar
+                const cached = localStorage.getItem('temas_cache');
+                const cacheTime = localStorage.getItem('temas_cache_time');
+                
+                if(cached && cacheTime && (Date.now() - parseInt(cacheTime) < 300000)) { // Cache de 5 minutos
+                    dadosTemas = JSON.parse(cached);
+                    console.log('📦 Usando cache local:', dadosTemas.length, 'temas');
+                    ordenarTemas();
+                    mostrarLoading(false);
+                    
+                    // Atualizar em segundo plano
+                    atualizarTemasBackground();
+                } else {
+                    await carregarTemasDoFirebase();
+                }
+            } catch(error) {
+                console.error('Erro:', error);
+                await carregarTemasDoFirebase();
+            }
+        }
+        
+        async function carregarTemasDoFirebase() {
+            const snapshot = await getDocs(collection(db, 'temas'));
+            dadosTemas = [];
+            snapshot.forEach(doc => {
+                dadosTemas.push({ id: doc.id, ...doc.data() });
+            });
+            
+            // Salvar cache
+            localStorage.setItem('temas_cache', JSON.stringify(dadosTemas));
+            localStorage.setItem('temas_cache_time', Date.now().toString());
+            
+            console.log('✅ Temas carregados do Firebase:', dadosTemas.length);
+            await atualizarUsosTemas();
+        }
+        
+        async function atualizarTemasBackground() {
+            try {
+                const snapshot = await getDocs(collection(db, 'temas'));
+                const novosTemas = [];
+                snapshot.forEach(doc => novosTemas.push({ id: doc.id, ...doc.data() }));
+                
+                if(JSON.stringify(novosTemas) !== JSON.stringify(dadosTemas)) {
+                    dadosTemas = novosTemas;
+                    localStorage.setItem('temas_cache', JSON.stringify(dadosTemas));
+                    ordenarTemas();
+                }
+            } catch(e) { console.error('Erro na atualização background:', e); }
+        }
+        
+        async function atualizarUsosTemas() {
+            try {
+                const visitantesSnap = await getDocs(collection(db, 'visitantes'));
+                const enviadosSnap = await getDocs(collection(db, 'enviados'));
+                
+                const contagem = {};
+                visitantesSnap.forEach(doc => { const num = doc.data().temaNumero; if(num) contagem[num] = (contagem[num] || 0) + 1; });
+                enviadosSnap.forEach(doc => { const num = doc.data().temaNumero; if(num) contagem[num] = (contagem[num] || 0) + 1; });
+                
+                for(const tema of dadosTemas) {
+                    tema.usos = contagem[tema.numero] || 0;
+                }
+                
+                ordenarTemas();
+                mostrarLoading(false);
+            } catch(error) {
+                console.error('Erro ao atualizar usos:', error);
+                ordenarTemas();
+                mostrarLoading(false);
+            }
+        }
+        
+        window.ordenarTemas = () => {
             const ordem = document.getElementById('ordenacaoTemas').value;
             const filtroUso = document.getElementById('filtroUsoTemas').value;
             
-            let temas = [...dadosOriginais];
+            let temas = [...dadosTemas];
             
-            // Aplicar filtro de uso
             if(filtroUso === 'nuncaUsados') temas = temas.filter(t => (t.usos || 0) === 0);
             else if(filtroUso === 'poucoUsados') temas = temas.filter(t => (t.usos || 0) >= 1 && (t.usos || 0) <= 2);
             else if(filtroUso === 'muitoUsados') temas = temas.filter(t => (t.usos || 0) >= 3);
             
-            // Ordenar
             if(ordem === 'numeroAsc') temas.sort((a,b) => (parseInt(a.numero)||0) - (parseInt(b.numero)||0));
             else if(ordem === 'numeroDesc') temas.sort((a,b) => (parseInt(b.numero)||0) - (parseInt(a.numero)||0));
             else if(ordem === 'maisUsados') temas.sort((a,b) => (b.usos||0) - (a.usos||0));
             else if(ordem === 'menosUsados') temas.sort((a,b) => (a.usos||0) - (b.usos||0));
             
-            dadosFiltrados = temas;
+            dadosFiltradosTemas = temas;
             renderTemas();
             atualizarStatusTemas();
-        }
-
+        };
+        
+        window.filtrarTemas = () => { renderTemas(); };
+        
         function renderTemas() {
             const tbody = document.getElementById('tbody-temas');
             if(!tbody) return;
-            tbody.innerHTML = '';
             
             const busca = document.getElementById('searchTemas')?.value.toLowerCase() || '';
-            let filtrados = dadosFiltrados;
+            let filtrados = dadosFiltradosTemas;
+            
             if(busca) {
-                filtrados = dadosFiltrados.filter(t => 
+                filtrados = dadosFiltradosTemas.filter(t => 
                     t.numero?.toString().includes(busca) || 
                     t.titulo?.toLowerCase().includes(busca)
                 );
             }
             
-            if(filtrados.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500">Nenhum tema encontrado</td></tr>`; return; }
+            if(filtrados.length === 0 && !isLoading) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500">🔍 Nenhum tema encontrado</td></tr>`;
+                return;
+            }
             
+            tbody.innerHTML = '';
             filtrados.forEach(item => {
                 const tr = document.createElement('tr');
                 tr.className = 'border-b hover:bg-slate-50';
+                
                 let corUsos = '';
                 if(item.usos === 0) corUsos = 'bg-gray-100 text-gray-600';
                 else if(item.usos <= 2) corUsos = 'bg-yellow-100 text-yellow-800';
@@ -217,165 +312,31 @@
                 tbody.appendChild(tr);
             });
         }
-
+        
         function atualizarStatusTemas() {
-            const total = dadosOriginais.length;
-            const usados = dadosOriginais.filter(t => (t.usos || 0) > 0).length;
+            const total = dadosTemas.length;
+            const usados = dadosTemas.filter(t => (t.usos || 0) > 0).length;
             const nuncaUsados = total - usados;
-            const totalUsos = dadosOriginais.reduce((sum, t) => sum + (t.usos || 0), 0);
+            const totalUsos = dadosTemas.reduce((sum, t) => sum + (t.usos || 0), 0);
             document.getElementById('statusInfo').innerHTML = `📊 ${total} temas | ${usados} usados | ${nuncaUsados} nunca usados | ${totalUsos} discursos no total`;
         }
-
-        window.filtrarTemas = () => { renderTemas(); };
-
-        window.exportarTemas = () => {
-            let csv = "Número,Título,Usos,Observações\n";
-            dadosOriginais.sort((a,b) => (parseInt(a.numero)||0) - (parseInt(b.numero)||0));
-            dadosOriginais.forEach(t => {
-                csv += `"${t.numero || ''}","${(t.titulo || '').replace(/"/g, '""')}",${t.usos || 0},"${(t.obs || '').replace(/"/g, '""')}"\n`;
-            });
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `temas_${new Date().toISOString().split('T')[0]}.csv`;
-            link.click();
-        };
-
-        function parseDataCompleta(dataStr) {
-            if(!dataStr) return new Date(0);
-            let dataLimpa = dataStr.toString();
-            if(dataLimpa.includes('/')) {
-                let partes = dataLimpa.split(' ');
-                let dataPartes = partes[0].split('/');
-                let horaPartes = partes[1] ? partes[1].split(':') : [0,0];
-                return new Date(parseInt(dataPartes[2]), parseInt(dataPartes[1])-1, parseInt(dataPartes[0]), parseInt(horaPartes[0])||0, parseInt(horaPartes[1])||0);
-            } else {
-                return new Date(dataLimpa);
-            }
-        }
-
-        function filtrarPorMes() {
-            if(currentTab === 'temas') return;
-            const ano = mesAtual.getFullYear(), mes = mesAtual.getMonth() + 1;
-            dadosFiltrados = dadosOriginais.filter(item => {
-                if(!item.data) return false;
-                let dataObj = parseDataCompleta(item.data);
-                return dataObj.getFullYear() === ano && (dataObj.getMonth() + 1) === mes;
-            });
-            ordenarDados();
-            document.getElementById('statusInfo').innerHTML = `📅 ${mes.toString().padStart(2,'0')}/${ano} | ${dadosFiltrados.length} discursos`;
-        }
-
-        window.ordenarDados = () => {
-            if(currentTab === 'temas') return;
-            let ordem = document.getElementById('ordenacao').value;
-            dadosFiltrados.sort((a,b) => {
-                if(!a.data) return 1; if(!b.data) return -1;
-                let dataA = parseDataCompleta(a.data);
-                let dataB = parseDataCompleta(b.data);
-                return ordem === 'asc' ? dataA - dataB : dataB - dataA;
-            });
-            renderTable();
-        };
-
-        function renderTable() {
-            const tbody = document.getElementById(`tbody-${currentTab}`);
-            if(!tbody || currentTab === 'temas') return;
-            tbody.innerHTML = '';
-            if(dadosFiltrados.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-500">Nenhum registro encontrado</td></tr>`; return; }
-            
-            dadosFiltrados.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.className = 'border-b hover:bg-slate-50';
-                let cells = '';
-                if(currentTab === 'visitantes' || currentTab === 'enviados') {
-                    cells = `<td class="px-4 py-3">${formatarDataExibicao(item.data)}</td><td class="px-4 py-3 font-medium">${escapeHtml(item.orador || '')}</td><td class="px-4 py-3">${escapeHtml(item.congregacao || '')}</td><td class="px-4 py-3">${escapeHtml(item.tema || '')}</td><td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>`;
-                } else if(currentTab === 'oradores') {
-                    cells = `<td class="px-4 py-3 font-medium">${escapeHtml(item.nome || '')}</td><td class="px-4 py-3 text-sm">${escapeHtml(Array.isArray(item.temas) ? item.temas.join(', ') : item.temas || '')}</td><td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>`;
-                }
-                const actions = currentUser ? `<td class="px-4 py-3 text-right"><button onclick="editItem('${item.id}')" class="text-blue-600 hover:text-blue-800 mr-3 text-sm">Editar</button><button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-800 text-sm">Excluir</button></td>` : '<td class="px-4 py-3"></td>';
-                tr.innerHTML = cells + actions;
-                tbody.appendChild(tr);
-            });
-        }
-
-        window.navegarMes = (delta) => { mesAtual.setMonth(mesAtual.getMonth() + delta); filtrarPorMes(); };
-        window.resetarMes = () => { mesAtual = new Date(); filtrarPorMes(); };
-
-        function formatarDataExibicao(dataStr) {
-            if(!dataStr) return '';
-            if(dataStr.includes('/')) return dataStr;
-            let data = new Date(dataStr);
-            return data.toLocaleDateString('pt-BR');
-        }
-
-        window.removerDuplicatas = async () => {
-            if(!confirm('Remover duplicatas (mesma data+orador+tema)?')) return;
-            const mapa = new Map();
-            const duplicados = [];
-            for(const item of dadosOriginais) {
-                const chave = `${item.data}|${item.orador}|${item.tema}`;
-                if(mapa.has(chave)) duplicados.push(item.id);
-                else mapa.set(chave, item.id);
-            }
-            if(duplicados.length === 0) { alert('Nenhuma duplicata!'); return; }
-            const batch = writeBatch(db);
-            duplicados.forEach(id => batch.delete(doc(db, collections[currentTab], id)));
-            await batch.commit();
-            alert(`✅ ${duplicados.length} duplicatas removidas!`);
-        };
-
-        window.searchTable = () => {
-            const filtro = document.getElementById('searchInput').value.toLowerCase();
-            const rows = document.querySelectorAll(`#tbody-${currentTab} tr`);
-            rows.forEach(row => { row.style.display = row.textContent.toLowerCase().includes(filtro) ? '' : 'none'; });
-        };
-
+        
         function escapeHtml(t) { if(!t) return ''; const div = document.createElement('div'); div.textContent = t; return div.innerHTML; }
-
+        
         window.switchTab = (tab) => {
             currentTab = tab;
-            mesAtual = new Date();
-            
-            // Mostrar/esconder filtros específicos
-            document.getElementById('filtrosVisitantes').classList.toggle('hidden', tab === 'temas');
-            document.getElementById('filtrosTemas').classList.toggle('hidden', tab !== 'temas');
-            
             document.querySelectorAll('.tab-btn').forEach(btn => { btn.classList.remove('bg-blue-600','text-white'); btn.classList.add('bg-slate-200','text-slate-700'); });
             document.getElementById(`tab-${tab}`).classList.remove('bg-slate-200','text-slate-700'); document.getElementById(`tab-${tab}`).classList.add('bg-blue-600','text-white');
             document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); document.getElementById(`content-${tab}`).classList.remove('hidden');
-            if(currentUser) loadData();
         };
-
-        window.openModal = () => { editId = null; document.getElementById('modalTitle').textContent = `Adicionar`; document.getElementById('formModal').classList.remove('hidden'); renderForm(); };
         
-        window.editItem = async (id) => { editId = id; const item = dadosOriginais.find(i => i.id === id); if(item) { document.getElementById('modalTitle').textContent = `Editar`; document.getElementById('formModal').classList.remove('hidden'); renderForm(); setTimeout(() => { Object.keys(item).forEach(key => { const el = document.getElementById(key); if(el) el.value = item[key]; }); }, 50); } };
-        
-        window.deleteItem = async (id) => { if(confirm('Excluir?')) await deleteDoc(doc(db, collections[currentTab], id)); };
-        
-        window.saveItem = async (e) => { e.preventDefault(); const formData = new FormData(e.target); const data = {}; for(let [k,v] of formData.entries()) data[k] = v; try { if(editId) await updateDoc(doc(db, collections[currentTab], editId), data); else await addDoc(collection(db, collections[currentTab]), data); closeModal('formModal'); } catch(error) { alert('Erro: ' + error.message); } };
-        
-        function renderForm() {
-            const formFields = document.getElementById('formFields');
-            let html = '';
-            if(currentTab === 'visitantes' || currentTab === 'enviados') {
-                html = `<div><label>Data e Horário</label><input type="datetime-local" id="data" name="data" class="w-full px-3 py-2 border rounded-lg"></div>
-                        <div><label>Orador</label><input type="text" id="orador" name="orador" required class="w-full px-3 py-2 border rounded-lg"></div>
-                        <div><label>Congregação</label><input type="text" id="congregacao" name="congregacao" class="w-full px-3 py-2 border rounded-lg"></div>
-                        <div><label>Nº do Tema</label><input type="text" id="temaNumero" name="temaNumero" class="w-full px-3 py-2 border rounded-lg"></div>
-                        <div><label>Tema</label><input type="text" id="tema" name="tema" class="w-full px-3 py-2 border rounded-lg"></div>
-                        <div><label>Observações</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>`;
-            } else if(currentTab === 'temas') {
-                html = `<div><label>Número</label><input type="number" id="numero" name="numero" required class="w-full px-3 py-2 border rounded-lg"></div>
-                        <div><label>Título</label><input type="text" id="titulo" name="titulo" required class="w-full px-3 py-2 border rounded-lg"></div>
-                        <div><label>Observações</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>`;
-            } else if(currentTab === 'oradores') {
-                html = `<div><label>Nome</label><input type="text" id="nome" name="nome" required class="w-full px-3 py-2 border rounded-lg"></div>
-                        <div><label>Temas (separados por vírgula)</label><input type="text" id="temas" name="temas" class="w-full px-3 py-2 border rounded-lg" placeholder="Ex: 12, 45, 78"></div>
-                        <div><label>Observações</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>`;
-            }
-            formFields.innerHTML = html;
-        }
+        window.navegarMes = (delta) => { console.log('Navegar', delta); };
+        window.resetarMes = () => { console.log('Reset'); };
+        window.removerDuplicatas = () => { alert('Use o botão na aba específica'); };
+        window.openModal = () => { alert('Implementar'); };
+        window.editItem = (id) => { alert('Editar: '+id); };
+        window.deleteItem = async (id) => { if(confirm('Excluir?')) await deleteDoc(doc(db, 'temas', id)); carregarTemas(); };
+        window.saveItem = (e) => { e.preventDefault(); };
     </script>
 </body>
 </html>
