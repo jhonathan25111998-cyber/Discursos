@@ -5,459 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Discursos Públicos - Samas</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-
-        // CONFIG DO PROJETO NOVO DISCURSOS
-        const firebaseConfig = {
-          apiKey: "AIzaSyDITvwMh4u-IA9gNht1WTlX6jxUBPj7c0I",
-          authDomain: "discursos-6903f.firebaseapp.com",
-          projectId: "discursos-6903f",
-          storageBucket: "discursos-6903f.firebasestorage.app",
-          messagingSenderId: "729085489214",
-          appId: "1:729085489214:web:c8b617657d9af0fd31616f",
-          measurementId: "G-N9B3HTBKNH"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-
-        let currentUser = null;
-        let currentTab = 'visitantes';
-        let editId = null;
-        let unsubscribeSnapshot = null; // Para limpar listener
-
-        const collections = {
-            visitantes: 'visitantes',
-            enviados: 'enviados',
-            temas: 'temas',
-            oradores: 'oradoresLocais'
-        };
-
-        // Verificar estado de autenticação
-        onAuthStateChanged(auth, (user) => {
-            currentUser = user;
-            updateUI();
-            if (user) {
-                loadData();
-            } else {
-                // Limpar tabelas quando deslogar
-                clearTables();
-            }
-        });
-
-        function clearTables() {
-            const tabs = ['visitantes', 'enviados', 'temas', 'oradores'];
-            tabs.forEach(tab => {
-                const tbody = document.getElementById(`tbody-${tab}`);
-                if (tbody) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-500">Faça login para visualizar os dados</td></tr>`;
-                }
-            });
-        }
-
-        function updateUI() {
-            const loginBtn = document.getElementById('loginBtn');
-            const logoutBtn = document.getElementById('logoutBtn');
-            const addBtn = document.getElementById('addBtn');
-            const userEmailSpan = document.getElementById('userEmail');
-            
-            if (currentUser) {
-                if (loginBtn) loginBtn.classList.add('hidden');
-                if (logoutBtn) logoutBtn.classList.remove('hidden');
-                if (addBtn) addBtn.classList.remove('hidden');
-                if (userEmailSpan) userEmailSpan.textContent = currentUser.email;
-            } else {
-                if (loginBtn) loginBtn.classList.remove('hidden');
-                if (logoutBtn) logoutBtn.classList.add('hidden');
-                if (addBtn) addBtn.classList.add('hidden');
-                if (userEmailSpan) userEmailSpan.textContent = '';
-            }
-        }
-
-        window.login = async () => {
-            const email = document.getElementById('loginEmail').value;
-            const password = document.getElementById('loginPassword').value;
-            
-            if (!email || !password) {
-                alert('Por favor, preencha email e senha');
-                return;
-            }
-            
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                closeModal('loginModal');
-                // Limpar campos
-                document.getElementById('loginEmail').value = '';
-                document.getElementById('loginPassword').value = '';
-            } catch (error) {
-                let errorMessage = 'Erro ao fazer login: ';
-                switch (error.code) {
-                    case 'auth/user-not-found':
-                        errorMessage += 'Usuário não encontrado. Verifique se o usuário foi criado no Firebase Authentication.';
-                        break;
-                    case 'auth/wrong-password':
-                        errorMessage += 'Senha incorreta.';
-                        break;
-                    case 'auth/invalid-email':
-                        errorMessage += 'Email inválido.';
-                        break;
-                    default:
-                        errorMessage += error.message + '\n\nIMPORTANTE: Verifique se:\n1. O Firebase Authentication está ativado\n2. Um usuário foi criado no Authentication\n3. As regras de segurança do Firestore permitem acesso';
-                }
-                alert(errorMessage);
-                console.error('Erro detalhado:', error);
-            }
-        }
-
-        window.logout = async () => {
-            try {
-                await signOut(auth);
-                // Resetar editId e currentTab
-                editId = null;
-                if (unsubscribeSnapshot) {
-                    unsubscribeSnapshot();
-                    unsubscribeSnapshot = null;
-                }
-            } catch (error) {
-                console.error('Erro ao sair:', error);
-            }
-        }
-
-        window.switchTab = (tab) => {
-            currentTab = tab;
-            
-            // Atualizar botões
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('bg-blue-600', 'text-white');
-                btn.classList.add('bg-slate-200', 'text-slate-700');
-            });
-            const activeBtn = document.getElementById(`tab-${tab}`);
-            if (activeBtn) {
-                activeBtn.classList.remove('bg-slate-200', 'text-slate-700');
-                activeBtn.classList.add('bg-blue-600', 'text-white');
-            }
-            
-            // Mostrar conteúdo correto
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
-            const activeContent = document.getElementById(`content-${tab}`);
-            if (activeContent) activeContent.classList.remove('hidden');
-            
-            // Recarregar dados se estiver logado
-            if (currentUser) {
-                loadData();
-            }
-        }
-
-        async function loadData() {
-            if (!currentUser) return;
-            
-            const colName = collections[currentTab];
-            if (!colName) return;
-            
-            // Remover listener anterior se existir
-            if (unsubscribeSnapshot) {
-                unsubscribeSnapshot();
-            }
-            
-            try {
-                const q = query(collection(db, colName), orderBy('data', 'desc'));
-                
-                unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
-                    const data = [];
-                    snapshot.forEach(doc => {
-                        data.push({ id: doc.id, ...doc.data() });
-                    });
-                    renderTable(data);
-                    if (currentTab === 'temas') {
-                        updateContagemTemas(data);
-                    }
-                }, (error) => {
-                    console.error('Erro no snapshot:', error);
-                    if (error.code === 'permission-denied') {
-                        const tbody = document.getElementById(`tbody-${currentTab}`);
-                        if (tbody) {
-                            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-500">Erro de permissão. Verifique as regras de segurança do Firestore.</td></tr>`;
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Erro ao carregar dados:', error);
-            }
-        }
-
-        function renderTable(data) {
-            const tbody = document.getElementById(`tbody-${currentTab}`);
-            if (!tbody) return;
-            
-            tbody.innerHTML = '';
-            
-            if (data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-500">Nenhum registro encontrado</td></tr>`;
-                return;
-            }
-
-            data.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.className = 'border-b hover:bg-slate-50';
-                
-                let cells = '';
-                if (currentTab === 'visitantes') {
-                    cells = `
-                        <td class="px-4 py-3">${formatDate(item.data)}</td>
-                        <td class="px-4 py-3 font-medium">${escapeHtml(item.orador || '')}</td>
-                        <td class="px-4 py-3">${escapeHtml(item.congregacao || '')}</td>
-                        <td class="px-4 py-3">${escapeHtml(item.tema || '')}</td>
-                        <td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>
-                    `;
-                } else if (currentTab === 'enviados') {
-                    cells = `
-                        <td class="px-4 py-3">${formatDate(item.data)}</td>
-                        <td class="px-4 py-3 font-medium">${escapeHtml(item.orador || '')}</td>
-                        <td class="px-4 py-3">${escapeHtml(item.congregacao || '')}</td>
-                        <td class="px-4 py-3">${escapeHtml(item.tema || '')}</td>
-                        <td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>
-                    `;
-                } else if (currentTab === 'temas') {
-                    cells = `
-                        <td class="px-4 py-3 font-medium">${escapeHtml(item.numero || '')}</td>
-                        <td class="px-4 py-3">${escapeHtml(item.titulo || '')}</td>
-                        <td class="px-4 py-3 text-center"><span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">${item.usos || 0}</span></td>
-                        <td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>
-                    `;
-                } else if (currentTab === 'oradores') {
-                    cells = `
-                        <td class="px-4 py-3 font-medium">${escapeHtml(item.nome || '')}</td>
-                        <td class="px-4 py-3 text-sm">${escapeHtml(Array.isArray(item.temas) ? item.temas.join(', ') : item.temas || '')}</td>
-                        <td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>
-                    `;
-                }
-
-                const actions = currentUser ? `
-                    <td class="px-4 py-3 text-right">
-                        <button onclick="editItem('${item.id}')" class="text-blue-600 hover:text-blue-800 mr-3 text-sm">Editar</button>
-                        <button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-800 text-sm">Excluir</button>
-                    </td>
-                ` : '<td class="px-4 py-3"></td>';
-
-                tr.innerHTML = cells + actions;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function formatDate(dateStr) {
-            if (!dateStr) return '';
-            const [year, month, day] = dateStr.split('-');
-            return `${day}/${month}/${year}`;
-        }
-
-        async function updateContagemTemas(temas) {
-            try {
-                const visitantesSnap = await getDocs(collection(db, 'visitantes'));
-                const enviadosSnap = await getDocs(collection(db, 'enviados'));
-                
-                const contagem = {};
-                visitantesSnap.forEach(doc => {
-                    const num = doc.data().temaNumero;
-                    if (num) contagem[num] = (contagem[num] || 0) + 1;
-                });
-                enviadosSnap.forEach(doc => {
-                    const num = doc.data().temaNumero;
-                    if (num) contagem[num] = (contagem[num] || 0) + 1;
-                });
-
-                for (const tema of temas) {
-                    const usos = contagem[tema.numero] || 0;
-                    if (tema.usos !== usos && tema.id) {
-                        await updateDoc(doc(db, 'temas', tema.id), { usos });
-                    }
-                }
-            } catch (error) {
-                console.error('Erro ao atualizar contagem:', error);
-            }
-        }
-
-        window.openModal = (type) => {
-            if (!currentUser) {
-                alert('Faça login primeiro');
-                return;
-            }
-            editId = null;
-            document.getElementById('modalTitle').textContent = `Adicionar ${getTabName()}`;
-            document.getElementById('formModal').classList.remove('hidden');
-            const form = document.getElementById('itemForm');
-            if (form) form.reset();
-            renderForm();
-        }
-
-        window.closeModal = (modalId) => {
-            const modal = document.getElementById(modalId);
-            if (modal) modal.classList.add('hidden');
-        }
-
-        function getTabName() {
-            const names = { visitantes: 'Orador Visitante', enviados: 'Orador Enviado', temas: 'Tema', oradores: 'Orador Local' };
-            return names[currentTab] || '';
-        }
-
-        function renderForm() {
-            const formFields = document.getElementById('formFields');
-            if (!formFields) return;
-            
-            let html = '';
-            
-            if (currentTab === 'visitantes' || currentTab === 'enviados') {
-                html = `
-                    <div><label class="block text-sm font-medium mb-1">Data</label><input type="date" id="data" name="data" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Orador</label><input type="text" id="orador" name="orador" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Congregação</label><input type="text" id="congregacao" name="congregacao" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Número do Tema</label><input type="text" id="temaNumero" name="temaNumero" class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Título do Tema</label><input type="text" id="tema" name="tema" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Observações</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>
-                `;
-            } else if (currentTab === 'temas') {
-                html = `
-                    <div><label class="block text-sm font-medium mb-1">Número</label><input type="text" id="numero" name="numero" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Título</label><input type="text" id="titulo" name="titulo" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Observações</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>
-                `;
-            } else if (currentTab === 'oradores') {
-                html = `
-                    <div><label class="block text-sm font-medium mb-1">Nome</label><input type="text" id="nome" name="nome" required class="w-full px-3 py-2 border rounded-lg"></div>
-                    <div><label class="block text-sm font-medium mb-1">Temas (separados por vírgula)</label><input type="text" id="temas" name="temas" class="w-full px-3 py-2 border rounded-lg" placeholder="Ex: 12, 45, 78"></div>
-                    <div><label class="block text-sm font-medium mb-1">Observações</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>
-                `;
-            }
-            formFields.innerHTML = html;
-        }
-
-        window.editItem = async (id) => {
-            if (!currentUser) {
-                alert('Faça login para editar');
-                return;
-            }
-            editId = id;
-            const colName = collections[currentTab];
-            try {
-                const docRef = doc(db, colName, id);
-                const docSnap = await getDocs(collection(db, colName));
-                let itemData = null;
-                docSnap.forEach(doc => {
-                    if (doc.id === id) itemData = doc.data();
-                });
-                
-                if (!itemData) {
-                    alert('Item não encontrado');
-                    return;
-                }
-                
-                document.getElementById('modalTitle').textContent = `Editar ${getTabName()}`;
-                document.getElementById('formModal').classList.remove('hidden');
-                renderForm();
-                
-                // Preencher campos após renderizar
-                setTimeout(() => {
-                    Object.keys(itemData).forEach(key => {
-                        const el = document.getElementById(key);
-                        if (el) {
-                            if (key === 'temas' && Array.isArray(itemData[key])) {
-                                el.value = itemData[key].join(', ');
-                            } else if (key === 'data' && itemData[key]) {
-                                el.value = itemData[key];
-                            } else {
-                                el.value = itemData[key] || '';
-                            }
-                        }
-                    });
-                }, 50);
-            } catch (error) {
-                console.error('Erro ao editar:', error);
-                alert('Erro ao carregar dados para edição');
-            }
-        }
-
-        window.deleteItem = async (id) => {
-            if (!currentUser) {
-                alert('Faça login para excluir');
-                return;
-            }
-            if (!confirm('Tem certeza que deseja excluir?')) return;
-            const colName = collections[currentTab];
-            try {
-                await deleteDoc(doc(db, colName, id));
-            } catch (error) {
-                console.error('Erro ao excluir:', error);
-                alert('Erro ao excluir: ' + error.message);
-            }
-        }
-
-        window.saveItem = async (e) => {
-            e.preventDefault();
-            if (!currentUser) {
-                alert('Faça login para salvar');
-                return;
-            }
-            
-            const colName = collections[currentTab];
-            const formData = new FormData(e.target);
-            const data = {};
-            
-            for (let [key, value] of formData.entries()) {
-                if (key === 'temas') {
-                    data[key] = value.split(',').map(t => t.trim()).filter(t => t);
-                } else {
-                    data[key] = value;
-                }
-            }
-            
-            try {
-                if (editId) {
-                    await updateDoc(doc(db, colName, editId), data);
-                } else {
-                    await addDoc(collection(db, colName), data);
-                }
-                closeModal('formModal');
-                editId = null;
-            } catch (error) {
-                console.error('Erro ao salvar:', error);
-                alert('Erro ao salvar: ' + error.message);
-            }
-        }
-
-        window.searchTable = () => {
-            const input = document.getElementById('searchInput');
-            if (!input) return;
-            const filter = input.value.toLowerCase();
-            const rows = document.querySelectorAll(`#tbody-${currentTab} tr`);
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(filter) ? '' : 'none';
-            });
-        }
-
-        window.openLoginModal = () => {
-            document.getElementById('loginModal').classList.remove('hidden');
-        }
-        
-        // Inicializar UI
-        updateUI();
-    </script>
+    <style>
+        .btn-month { transition: all 0.2s ease; }
+        .btn-month:hover { transform: scale(1.05); }
+        .loading { animation: pulse 1.5s ease-in-out infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
 </head>
 <body class="bg-slate-50">
     <div class="min-h-screen">
         <header class="bg-white shadow-sm border-b">
             <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between items-center">
+                <div class="flex justify-between items-center flex-wrap gap-3">
                     <div>
                         <h1 class="text-2xl font-bold text-slate-900">Controle de Discursos Públicos</h1>
                         <p class="text-sm text-slate-600 mt-1">Congregação São Mateus do Sul</p>
@@ -479,114 +38,196 @@
                     <button id="tab-temas" onclick="switchTab('temas')" class="tab-btn px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">Controle de Temas</button>
                     <button id="tab-oradores" onclick="switchTab('oradores')" class="tab-btn px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">Oradores Samas Temas</button>
                 </div>
-                <div class="flex gap-2">
-                    <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Buscar..." class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
-                    <button id="addBtn" onclick="openModal()" class="hidden px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium whitespace-nowrap">+ Adicionar</button>
+                
+                <!-- Filtros Avançados -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                    <div class="flex gap-2">
+                        <button id="prevMonth" onclick="navegarMes(-1)" class="btn-month px-3 py-2 bg-slate-200 rounded-lg hover:bg-slate-300 text-sm font-medium">◀ Mês Ant.</button>
+                        <button id="currentMonthBtn" onclick="resetarMes()" class="btn-month px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium flex-1">📅 Mês Atual</button>
+                        <button id="nextMonth" onclick="navegarMes(1)" class="btn-month px-3 py-2 bg-slate-200 rounded-lg hover:bg-slate-300 text-sm font-medium">Mês Seg. ▶</button>
+                    </div>
+                    <div>
+                        <select id="mesFiltro" onchange="mudarMesSelecionado()" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="">Selecione um mês...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <select id="ordenacao" onchange="ordenarDados()" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="desc">📅 Mais recentes primeiro</option>
+                            <option value="asc">📅 Mais antigos primeiro</option>
+                        </select>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Buscar..." class="flex-1 px-3 py-2 border rounded-lg text-sm">
+                        <button id="addBtn" onclick="openModal()" class="hidden px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium whitespace-nowrap">+ Adicionar</button>
+                    </div>
+                </div>
+                
+                <!-- Status e botão de limpeza -->
+                <div class="flex justify-between items-center">
+                    <div id="statusInfo" class="text-sm text-slate-500"></div>
+                    <button onclick="removerDuplicatas()" class="text-red-600 hover:text-red-800 text-sm font-medium flex items-center gap-1">
+                        🧹 Remover Duplicatas
+                    </button>
                 </div>
             </div>
 
+            <!-- Tabelas (mesma estrutura do original) -->
             <div id="content-visitantes" class="tab-content bg-white rounded-lg shadow-sm overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full">
                         <thead class="bg-slate-100 border-b">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Data</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Orador</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Congregação</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Tema</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Obs</th>
-                                <th class="px-4 py-3 text-right text-sm font-semibold text-slate-700">Ações</th>
-                            </tr>
+                            <tr><th class="px-4 py-3 text-left text-sm font-semibold">Data</th><th class="px-4 py-3 text-left text-sm font-semibold">Orador</th><th class="px-4 py-3 text-left text-sm font-semibold">Congregação</th><th class="px-4 py-3 text-left text-sm font-semibold">Tema</th><th class="px-4 py-3 text-left text-sm font-semibold">Obs</th><th class="px-4 py-3 text-right text-sm font-semibold">Ações</th></tr>
                         </thead>
                         <tbody id="tbody-visitantes"></tbody>
                     </table>
                 </div>
             </div>
-
             <div id="content-enviados" class="tab-content bg-white rounded-lg shadow-sm overflow-hidden hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-slate-100 border-b">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Data</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Orador</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Congregação</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Tema</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Obs</th>
-                                <th class="px-4 py-3 text-right text-sm font-semibold text-slate-700">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-enviados"></tbody>
-                    </table>
+                    <table class="w-full"><thead class="bg-slate-100 border-b"><tr><th class="px-4 py-3 text-left">Data</th><th class="px-4 py-3 text-left">Orador</th><th class="px-4 py-3 text-left">Congregação</th><th class="px-4 py-3 text-left">Tema</th><th class="px-4 py-3 text-left">Obs</th><th class="px-4 py-3 text-right">Ações</th></tr></thead><tbody id="tbody-enviados"></tbody></table>
                 </div>
             </div>
-
             <div id="content-temas" class="tab-content bg-white rounded-lg shadow-sm overflow-hidden hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-slate-100 border-b">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Número</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Título</th>
-                                <th class="px-4 py-3 text-center text-sm font-semibold text-slate-700">Usos</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Obs</th>
-                                <th class="px-4 py-3 text-right text-sm font-semibold text-slate-700">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-temas"></tbody>
-                    </table>
+                    <table class="w-full"><thead class="bg-slate-100 border-b"><tr><th class="px-4 py-3 text-left">Número</th><th class="px-4 py-3 text-left">Título</th><th class="px-4 py-3 text-center">Usos</th><th class="px-4 py-3 text-left">Obs</th><th class="px-4 py-3 text-right">Ações</th></tr></thead><tbody id="tbody-temas"></tbody></table>
                 </div>
             </div>
-
             <div id="content-oradores" class="tab-content bg-white rounded-lg shadow-sm overflow-hidden hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-slate-100 border-b">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Nome</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Temas</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-slate-700">Obs</th>
-                                <th class="px-4 py-3 text-right text-sm font-semibold text-slate-700">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-oradores"></tbody>
-                    </table>
+                    <table class="w-full"><thead class="bg-slate-100 border-b"><tr><th class="px-4 py-3 text-left">Nome</th><th class="px-4 py-3 text-left">Temas</th><th class="px-4 py-3 text-left">Obs</th><th class="px-4 py-3 text-right">Ações</th></tr></thead><tbody id="tbody-oradores"></tbody></table>
                 </div>
             </div>
         </main>
     </div>
 
-    <div id="loginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 class="text-xl font-bold mb-4">Entrar</h2>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium mb-1">Email</label>
-                    <input type="email" id="loginEmail" autocomplete="username" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="seu@email.com">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Senha</label>
-                    <input type="password" id="loginPassword" autocomplete="current-password" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="••••••••">
-                </div>
-                <div class="flex gap-2 pt-2">
-                    <button onclick="login()" class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Entrar</button>
-                    <button onclick="closeModal('loginModal')" class="px-4 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-medium">Cancelar</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Modais (mesmo do original) -->
+    <div id="loginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"><div class="bg-white rounded-lg max-w-md w-full p-6"><h2 class="text-xl font-bold mb-4">Entrar</h2><div class="space-y-4"><div><label class="block text-sm font-medium mb-1">Email</label><input type="email" id="loginEmail" class="w-full px-4 py-3 border rounded-lg"></div><div><label class="block text-sm font-medium mb-1">Senha</label><input type="password" id="loginPassword" class="w-full px-4 py-3 border rounded-lg"></div><div class="flex gap-2 pt-2"><button onclick="login()" class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg">Entrar</button><button onclick="closeModal('loginModal')" class="px-4 py-3 bg-slate-200 rounded-lg">Cancelar</button></div></div></div></div>
 
-    <div id="formModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div class="bg-white rounded-lg max-w-2xl w-full p-6 my-8">
-            <h2 id="modalTitle" class="text-xl font-bold mb-4">Adicionar</h2>
-            <form id="itemForm" onsubmit="saveItem(event)" class="space-y-4">
-                <div id="formFields" class="space-y-4"></div>
-                <div class="flex gap-2 pt-4 border-t">
-                    <button type="submit" class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Salvar</button>
-                    <button type="button" onclick="closeModal('formModal')" class="px-4 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-medium">Cancelar</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    <div id="formModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto"><div class="bg-white rounded-lg max-w-2xl w-full p-6 my-8"><h2 id="modalTitle" class="text-xl font-bold mb-4">Adicionar</h2><form id="itemForm" onsubmit="saveItem(event)" class="space-y-4"><div id="formFields" class="space-y-4"></div><div class="flex gap-2 pt-4 border-t"><button type="submit" class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg">Salvar</button><button type="button" onclick="closeModal('formModal')" class="px-4 py-3 bg-slate-200 rounded-lg">Cancelar</button></div></form></div></div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, writeBatch } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+        const firebaseConfig = { apiKey: "AIzaSyDITvwMh4u-IA9gNht1WTlX6jxUBPj7c0I", authDomain: "discursos-6903f.firebaseapp.com", projectId: "discursos-6903f", storageBucket: "discursos-6903f.firebasestorage.app", messagingSenderId: "729085489214", appId: "1:729085489214:web:c8b617657d9af0fd31616f" };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let currentUser = null, currentTab = 'visitantes', editId = null, unsubscribeSnapshot = null;
+        let dadosOriginais = [], dadosFiltrados = [], mesAtual = new Date(), ordenacaoAtual = 'desc';
+        const collections = { visitantes: 'visitantes', enviados: 'enviados', temas: 'temas', oradores: 'oradoresLocais' };
+
+        onAuthStateChanged(auth, (user) => { currentUser = user; updateUI(); if (user) loadData(); else clearTables(); });
+
+        function updateUI() {
+            const loginBtn = document.getElementById('loginBtn'), logoutBtn = document.getElementById('logoutBtn'), addBtn = document.getElementById('addBtn');
+            if (currentUser) { loginBtn?.classList.add('hidden'); logoutBtn?.classList.remove('hidden'); addBtn?.classList.remove('hidden'); document.getElementById('userEmail').textContent = currentUser.email; }
+            else { loginBtn?.classList.remove('hidden'); logoutBtn?.classList.add('hidden'); addBtn?.classList.add('hidden'); document.getElementById('userEmail').textContent = ''; }
+        }
+
+        function clearTables() { ['visitantes', 'enviados', 'temas', 'oradores'].forEach(tab => { const tbody = document.getElementById(`tbody-${tab}`); if(tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-500">Faça login para visualizar</td></tr>`; }); }
+
+        window.login = async () => { try { await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPassword').value); closeModal('loginModal'); } catch(error) { alert('Erro: ' + error.message); } };
+        window.logout = async () => { await signOut(auth); if(unsubscribeSnapshot) unsubscribeSnapshot(); };
+        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
+        window.openLoginModal = () => document.getElementById('loginModal').classList.remove('hidden');
+
+        function loadData() {
+            if(!currentUser) return;
+            if(unsubscribeSnapshot) unsubscribeSnapshot();
+            const colName = collections[currentTab];
+            const q = query(collection(db, colName));
+            unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+                dadosOriginais = [];
+                snapshot.forEach(doc => dadosOriginais.push({ id: doc.id, ...doc.data() }));
+                filtrarPorMes();
+                atualizarStatusInfo();
+            });
+        }
+
+        function atualizarStatusInfo() { document.getElementById('statusInfo').innerHTML = `📊 Total: ${dadosOriginais.length} registros | 📅 Mostrando: ${dadosFiltrados.length} registros`; }
+
+        function filtrarPorMes() {
+            if(currentTab === 'temas' || currentTab === 'oradores') { dadosFiltrados = [...dadosOriginais]; ordenarDados(); return; }
+            const ano = mesAtual.getFullYear(), mes = mesAtual.getMonth() + 1;
+            dadosFiltrados = dadosOriginais.filter(item => {
+                if(!item.data) return false;
+                const [anoItem, mesItem] = item.data.split('-');
+                return parseInt(anoItem) === ano && parseInt(mesItem) === mes;
+            });
+            ordenarDados();
+            document.getElementById('statusInfo').innerHTML = `📅 ${mes.toString().padStart(2,'0')}/${ano} | ${dadosFiltrados.length} discursos`;
+        }
+
+        window.navegarMes = (delta) => { mesAtual.setMonth(mesAtual.getMonth() + delta); filtrarPorMes(); };
+        window.resetarMes = () => { mesAtual = new Date(); filtrarPorMes(); };
+        window.mudarMesSelecionado = () => { alert('Função disponível na próxima atualização'); };
+
+        window.ordenarDados = () => {
+            ordenacaoAtual = document.getElementById('ordenacao').value;
+            dadosFiltrados.sort((a,b) => {
+                if(!a.data) return 1; if(!b.data) return -1;
+                return ordenacaoAtual === 'desc' ? b.data.localeCompare(a.data) : a.data.localeCompare(b.data);
+            });
+            renderTable(dadosFiltrados);
+        };
+
+        window.switchTab = (tab) => {
+            currentTab = tab; mesAtual = new Date();
+            document.querySelectorAll('.tab-btn').forEach(btn => { btn.classList.remove('bg-blue-600','text-white'); btn.classList.add('bg-slate-200','text-slate-700'); });
+            document.getElementById(`tab-${tab}`).classList.remove('bg-slate-200','text-slate-700'); document.getElementById(`tab-${tab}`).classList.add('bg-blue-600','text-white');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); document.getElementById(`content-${tab}`).classList.remove('hidden');
+            if(currentUser) loadData();
+        };
+
+        function renderTable(data) {
+            const tbody = document.getElementById(`tbody-${currentTab}`);
+            if(!tbody) return;
+            tbody.innerHTML = '';
+            if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-500">Nenhum registro encontrado</td></tr>`; return; }
+            data.forEach(item => { const tr = document.createElement('tr'); tr.className = 'border-b hover:bg-slate-50';
+                let cells = '';
+                if(currentTab === 'visitantes' || currentTab === 'enviados') cells = `<td class="px-4 py-3">${formatDate(item.data)}</td><td class="px-4 py-3 font-medium">${escapeHtml(item.orador || '')}</td><td class="px-4 py-3">${escapeHtml(item.congregacao || '')}</td><td class="px-4 py-3">${escapeHtml(item.tema || '')}</td><td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>`;
+                else if(currentTab === 'temas') cells = `<td class="px-4 py-3 font-medium">${escapeHtml(item.numero || '')}</td><td class="px-4 py-3">${escapeHtml(item.titulo || '')}</td><td class="px-4 py-3 text-center"><span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">${item.usos || 0}</span></td><td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>`;
+                else if(currentTab === 'oradores') cells = `<td class="px-4 py-3 font-medium">${escapeHtml(item.nome || '')}</td><td class="px-4 py-3 text-sm">${escapeHtml(Array.isArray(item.temas) ? item.temas.join(', ') : item.temas || '')}</td><td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>`;
+                const actions = currentUser ? `<td class="px-4 py-3 text-right"><button onclick="editItem('${item.id}')" class="text-blue-600 hover:text-blue-800 mr-3 text-sm">Editar</button><button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-800 text-sm">Excluir</button></td>` : '<td class="px-4 py-3"></td>';
+                tr.innerHTML = cells + actions; tbody.appendChild(tr);
+            });
+        }
+
+        window.removerDuplicatas = async () => {
+            if(!confirm(`⚠️ Isso irá remover TODOS os registros duplicados (mesma data + mesmo orador + mesmo tema) da coleção "${currentTab}".\n\nDeseja continuar?`)) return;
+            const mapa = new Map();
+            const duplicados = [];
+            for(const item of dadosOriginais) {
+                const chave = `${item.data}|${item.orador}|${item.tema}`;
+                if(mapa.has(chave)) duplicados.push(item.id);
+                else mapa.set(chave, item.id);
+            }
+            if(duplicados.length === 0) { alert('Nenhuma duplicata encontrada!'); return; }
+            if(confirm(`Encontradas ${duplicados.length} duplicatas. Remover?`)) {
+                const batch = writeBatch(db);
+                duplicados.forEach(id => batch.delete(doc(db, collections[currentTab], id)));
+                await batch.commit();
+                alert(`✅ ${duplicados.length} duplicatas removidas!`);
+            }
+        };
+
+        window.searchTable = () => { const filtro = document.getElementById('searchInput').value.toLowerCase(); const rows = document.querySelectorAll(`#tbody-${currentTab} tr`); rows.forEach(row => { row.style.display = row.textContent.toLowerCase().includes(filtro) ? '' : 'none'; }); };
+        function formatDate(dateStr) { if(!dateStr) return ''; const [y,m,d] = dateStr.split('-'); return `${d}/${m}/${y}`; }
+        function escapeHtml(t) { if(!t) return ''; const div = document.createElement('div'); div.textContent = t; return div.innerHTML; }
+
+        window.openModal = () => { editId = null; document.getElementById('modalTitle').textContent = `Adicionar`; document.getElementById('formModal').classList.remove('hidden'); renderForm(); };
+        window.editItem = async (id) => { editId = id; const item = dadosOriginais.find(i => i.id === id); if(item) { document.getElementById('modalTitle').textContent = `Editar`; document.getElementById('formModal').classList.remove('hidden'); renderForm(); setTimeout(() => { Object.keys(item).forEach(key => { const el = document.getElementById(key); if(el) el.value = key === 'temas' && Array.isArray(item[key]) ? item[key].join(', ') : item[key]; }); }, 50); } };
+        window.deleteItem = async (id) => { if(confirm('Excluir?')) await deleteDoc(doc(db, collections[currentTab], id)); };
+        window.saveItem = async (e) => { e.preventDefault(); const formData = new FormData(e.target); const data = {}; for(let [k,v] of formData.entries()) data[k] = v; try { if(editId) await updateDoc(doc(db, collections[currentTab], editId), data); else await addDoc(collection(db, collections[currentTab]), data); closeModal('formModal'); } catch(error) { alert('Erro: ' + error.message); } };
+        function renderForm() { const formFields = document.getElementById('formFields'); let html = ''; if(currentTab === 'visitantes' || currentTab === 'enviados') html = `<div><label>Data</label><input type="date" id="data" name="data" required class="w-full px-3 py-2 border rounded-lg"></div><div><label>Orador</label><input type="text" id="orador" name="orador" required class="w-full px-3 py-2 border rounded-lg"></div><div><label>Congregação</label><input type="text" id="congregacao" name="congregacao" required class="w-full px-3 py-2 border rounded-lg"></div><div><label>Nº Tema</label><input type="text" id="temaNumero" name="temaNumero" class="w-full px-3 py-2 border rounded-lg"></div><div><label>Tema</label><input type="text" id="tema" name="tema" required class="w-full px-3 py-2 border rounded-lg"></div><div><label>Obs</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>`;
+        else if(currentTab === 'temas') html = `<div><label>Número</label><input type="text" id="numero" name="numero" required class="w-full px-3 py-2 border rounded-lg"></div><div><label>Título</label><input type="text" id="titulo" name="titulo" required class="w-full px-3 py-2 border rounded-lg"></div><div><label>Obs</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>`;
+        else if(currentTab === 'oradores') html = `<div><label>Nome</label><input type="text" id="nome" name="nome" required class="w-full px-3 py-2 border rounded-lg"></div><div><label>Temas</label><input type="text" id="temas" name="temas" class="w-full px-3 py-2 border rounded-lg" placeholder="Ex: 12, 45, 78"></div><div><label>Obs</label><textarea id="obs" name="obs" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea></div>`;
+        formFields.innerHTML = html; }
+    </script>
 </body>
 </html>
