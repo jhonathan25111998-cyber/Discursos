@@ -28,6 +28,7 @@
         let currentUser = null;
         let currentTab = 'visitantes';
         let editId = null;
+        let unsubscribeSnapshot = null; // Para limpar listener
 
         const collections = {
             visitantes: 'visitantes',
@@ -36,75 +37,162 @@
             oradores: 'oradoresLocais'
         };
 
+        // Verificar estado de autenticação
         onAuthStateChanged(auth, (user) => {
             currentUser = user;
             updateUI();
-            if (user) loadData();
+            if (user) {
+                loadData();
+            } else {
+                // Limpar tabelas quando deslogar
+                clearTables();
+            }
         });
+
+        function clearTables() {
+            const tabs = ['visitantes', 'enviados', 'temas', 'oradores'];
+            tabs.forEach(tab => {
+                const tbody = document.getElementById(`tbody-${tab}`);
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-500">Faça login para visualizar os dados</td></tr>`;
+                }
+            });
+        }
 
         function updateUI() {
             const loginBtn = document.getElementById('loginBtn');
             const logoutBtn = document.getElementById('logoutBtn');
             const addBtn = document.getElementById('addBtn');
+            const userEmailSpan = document.getElementById('userEmail');
             
             if (currentUser) {
-                loginBtn.classList.add('hidden');
-                logoutBtn.classList.remove('hidden');
-                addBtn.classList.remove('hidden');
-                document.getElementById('userEmail').textContent = currentUser.email;
+                if (loginBtn) loginBtn.classList.add('hidden');
+                if (logoutBtn) logoutBtn.classList.remove('hidden');
+                if (addBtn) addBtn.classList.remove('hidden');
+                if (userEmailSpan) userEmailSpan.textContent = currentUser.email;
             } else {
-                loginBtn.classList.remove('hidden');
-                logoutBtn.classList.add('hidden');
-                addBtn.classList.add('hidden');
+                if (loginBtn) loginBtn.classList.remove('hidden');
+                if (logoutBtn) logoutBtn.classList.add('hidden');
+                if (addBtn) addBtn.classList.add('hidden');
+                if (userEmailSpan) userEmailSpan.textContent = '';
             }
         }
 
         window.login = async () => {
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
+            
+            if (!email || !password) {
+                alert('Por favor, preencha email e senha');
+                return;
+            }
+            
             try {
                 await signInWithEmailAndPassword(auth, email, password);
                 closeModal('loginModal');
+                // Limpar campos
+                document.getElementById('loginEmail').value = '';
+                document.getElementById('loginPassword').value = '';
             } catch (error) {
-                alert('Erro ao fazer login: ' + error.message);
+                let errorMessage = 'Erro ao fazer login: ';
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                        errorMessage += 'Usuário não encontrado. Verifique se o usuário foi criado no Firebase Authentication.';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMessage += 'Senha incorreta.';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage += 'Email inválido.';
+                        break;
+                    default:
+                        errorMessage += error.message + '\n\nIMPORTANTE: Verifique se:\n1. O Firebase Authentication está ativado\n2. Um usuário foi criado no Authentication\n3. As regras de segurança do Firestore permitem acesso';
+                }
+                alert(errorMessage);
+                console.error('Erro detalhado:', error);
             }
         }
 
         window.logout = async () => {
-            await signOut(auth);
+            try {
+                await signOut(auth);
+                // Resetar editId e currentTab
+                editId = null;
+                if (unsubscribeSnapshot) {
+                    unsubscribeSnapshot();
+                    unsubscribeSnapshot = null;
+                }
+            } catch (error) {
+                console.error('Erro ao sair:', error);
+            }
         }
 
         window.switchTab = (tab) => {
             currentTab = tab;
+            
+            // Atualizar botões
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.classList.remove('bg-blue-600', 'text-white');
                 btn.classList.add('bg-slate-200', 'text-slate-700');
             });
-            document.getElementById(`tab-${tab}`).classList.remove('bg-slate-200', 'text-slate-700');
-            document.getElementById(`tab-${tab}`).classList.add('bg-blue-600', 'text-white');
+            const activeBtn = document.getElementById(`tab-${tab}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-slate-200', 'text-slate-700');
+                activeBtn.classList.add('bg-blue-600', 'text-white');
+            }
             
+            // Mostrar conteúdo correto
             document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
-            document.getElementById(`content-${tab}`).classList.remove('hidden');
+            const activeContent = document.getElementById(`content-${tab}`);
+            if (activeContent) activeContent.classList.remove('hidden');
             
-            if (currentUser) loadData();
+            // Recarregar dados se estiver logado
+            if (currentUser) {
+                loadData();
+            }
         }
 
         async function loadData() {
-            const colName = collections[currentTab];
-            const q = query(collection(db, colName), orderBy('data', 'desc'));
+            if (!currentUser) return;
             
-            onSnapshot(q, (snapshot) => {
-                const data = [];
-                snapshot.forEach(doc => {
-                    data.push({ id: doc.id,...doc.data() });
+            const colName = collections[currentTab];
+            if (!colName) return;
+            
+            // Remover listener anterior se existir
+            if (unsubscribeSnapshot) {
+                unsubscribeSnapshot();
+            }
+            
+            try {
+                const q = query(collection(db, colName), orderBy('data', 'desc'));
+                
+                unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+                    const data = [];
+                    snapshot.forEach(doc => {
+                        data.push({ id: doc.id, ...doc.data() });
+                    });
+                    renderTable(data);
+                    if (currentTab === 'temas') {
+                        updateContagemTemas(data);
+                    }
+                }, (error) => {
+                    console.error('Erro no snapshot:', error);
+                    if (error.code === 'permission-denied') {
+                        const tbody = document.getElementById(`tbody-${currentTab}`);
+                        if (tbody) {
+                            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-500">Erro de permissão. Verifique as regras de segurança do Firestore.</td></tr>`;
+                        }
+                    }
                 });
-                renderTable(data);
-                if (currentTab === 'temas') updateContagemTemas(data);
-            });
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+            }
         }
 
         function renderTable(data) {
             const tbody = document.getElementById(`tbody-${currentTab}`);
+            if (!tbody) return;
+            
             tbody.innerHTML = '';
             
             if (data.length === 0) {
@@ -120,35 +208,35 @@
                 if (currentTab === 'visitantes') {
                     cells = `
                         <td class="px-4 py-3">${formatDate(item.data)}</td>
-                        <td class="px-4 py-3 font-medium">${item.orador || ''}</td>
-                        <td class="px-4 py-3">${item.congregacao || ''}</td>
-                        <td class="px-4 py-3">${item.tema || ''}</td>
-                        <td class="px-4 py-3 text-sm">${item.obs || ''}</td>
+                        <td class="px-4 py-3 font-medium">${escapeHtml(item.orador || '')}</td>
+                        <td class="px-4 py-3">${escapeHtml(item.congregacao || '')}</td>
+                        <td class="px-4 py-3">${escapeHtml(item.tema || '')}</td>
+                        <td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>
                     `;
                 } else if (currentTab === 'enviados') {
                     cells = `
                         <td class="px-4 py-3">${formatDate(item.data)}</td>
-                        <td class="px-4 py-3 font-medium">${item.orador || ''}</td>
-                        <td class="px-4 py-3">${item.congregacao || ''}</td>
-                        <td class="px-4 py-3">${item.tema || ''}</td>
-                        <td class="px-4 py-3 text-sm">${item.obs || ''}</td>
+                        <td class="px-4 py-3 font-medium">${escapeHtml(item.orador || '')}</td>
+                        <td class="px-4 py-3">${escapeHtml(item.congregacao || '')}</td>
+                        <td class="px-4 py-3">${escapeHtml(item.tema || '')}</td>
+                        <td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>
                     `;
                 } else if (currentTab === 'temas') {
                     cells = `
-                        <td class="px-4 py-3 font-medium">${item.numero || ''}</td>
-                        <td class="px-4 py-3">${item.titulo || ''}</td>
+                        <td class="px-4 py-3 font-medium">${escapeHtml(item.numero || '')}</td>
+                        <td class="px-4 py-3">${escapeHtml(item.titulo || '')}</td>
                         <td class="px-4 py-3 text-center"><span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">${item.usos || 0}</span></td>
-                        <td class="px-4 py-3 text-sm">${item.obs || ''}</td>
+                        <td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>
                     `;
                 } else if (currentTab === 'oradores') {
                     cells = `
-                        <td class="px-4 py-3 font-medium">${item.nome || ''}</td>
-                        <td class="px-4 py-3 text-sm">${Array.isArray(item.temas)? item.temas.join(', ') : item.temas || ''}</td>
-                        <td class="px-4 py-3 text-sm">${item.obs || ''}</td>
+                        <td class="px-4 py-3 font-medium">${escapeHtml(item.nome || '')}</td>
+                        <td class="px-4 py-3 text-sm">${escapeHtml(Array.isArray(item.temas) ? item.temas.join(', ') : item.temas || '')}</td>
+                        <td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td>
                     `;
                 }
 
-                const actions = currentUser? `
+                const actions = currentUser ? `
                     <td class="px-4 py-3 text-right">
                         <button onclick="editItem('${item.id}')" class="text-blue-600 hover:text-blue-800 mr-3 text-sm">Editar</button>
                         <button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-800 text-sm">Excluir</button>
@@ -160,6 +248,13 @@
             });
         }
 
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         function formatDate(dateStr) {
             if (!dateStr) return '';
             const [year, month, day] = dateStr.split('-');
@@ -167,46 +262,58 @@
         }
 
         async function updateContagemTemas(temas) {
-            const visitantesSnap = await getDocs(collection(db, 'visitantes'));
-            const enviadosSnap = await getDocs(collection(db, 'enviados'));
-            
-            const contagem = {};
-            visitantesSnap.forEach(doc => {
-                const num = doc.data().temaNumero;
-                if (num) contagem[num] = (contagem[num] || 0) + 1;
-            });
-            enviadosSnap.forEach(doc => {
-                const num = doc.data().temaNumero;
-                if (num) contagem[num] = (contagem[num] || 0) + 1;
-            });
+            try {
+                const visitantesSnap = await getDocs(collection(db, 'visitantes'));
+                const enviadosSnap = await getDocs(collection(db, 'enviados'));
+                
+                const contagem = {};
+                visitantesSnap.forEach(doc => {
+                    const num = doc.data().temaNumero;
+                    if (num) contagem[num] = (contagem[num] || 0) + 1;
+                });
+                enviadosSnap.forEach(doc => {
+                    const num = doc.data().temaNumero;
+                    if (num) contagem[num] = (contagem[num] || 0) + 1;
+                });
 
-            for (const tema of temas) {
-                const usos = contagem[tema.numero] || 0;
-                if (tema.usos!== usos) {
-                    await updateDoc(doc(db, 'temas', tema.id), { usos });
+                for (const tema of temas) {
+                    const usos = contagem[tema.numero] || 0;
+                    if (tema.usos !== usos && tema.id) {
+                        await updateDoc(doc(db, 'temas', tema.id), { usos });
+                    }
                 }
+            } catch (error) {
+                console.error('Erro ao atualizar contagem:', error);
             }
         }
 
         window.openModal = (type) => {
+            if (!currentUser) {
+                alert('Faça login primeiro');
+                return;
+            }
             editId = null;
             document.getElementById('modalTitle').textContent = `Adicionar ${getTabName()}`;
             document.getElementById('formModal').classList.remove('hidden');
-            document.getElementById('itemForm').reset();
+            const form = document.getElementById('itemForm');
+            if (form) form.reset();
             renderForm();
         }
 
         window.closeModal = (modalId) => {
-            document.getElementById(modalId).classList.add('hidden');
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('hidden');
         }
 
         function getTabName() {
             const names = { visitantes: 'Orador Visitante', enviados: 'Orador Enviado', temas: 'Tema', oradores: 'Orador Local' };
-            return names[currentTab];
+            return names[currentTab] || '';
         }
 
         function renderForm() {
             const formFields = document.getElementById('formFields');
+            if (!formFields) return;
+            
             let html = '';
             
             if (currentTab === 'visitantes' || currentTab === 'enviados') {
@@ -235,40 +342,72 @@
         }
 
         window.editItem = async (id) => {
+            if (!currentUser) {
+                alert('Faça login para editar');
+                return;
+            }
             editId = id;
             const colName = collections[currentTab];
-            const docs = await getDocs(collection(db, colName));
-            let itemData = null;
-            docs.forEach(doc => {
-                if (doc.id === id) itemData = doc.data();
-            });
-            
-            document.getElementById('modalTitle').textContent = `Editar ${getTabName()}`;
-            document.getElementById('formModal').classList.remove('hidden');
-            renderForm();
-            
-            setTimeout(() => {
-                Object.keys(itemData).forEach(key => {
-                    const el = document.getElementById(key);
-                    if (el) {
-                        if (key === 'temas' && Array.isArray(itemData[key])) {
-                            el.value = itemData[key].join(', ');
-                        } else {
-                            el.value = itemData[key];
-                        }
-                    }
+            try {
+                const docRef = doc(db, colName, id);
+                const docSnap = await getDocs(collection(db, colName));
+                let itemData = null;
+                docSnap.forEach(doc => {
+                    if (doc.id === id) itemData = doc.data();
                 });
-            }, 100);
+                
+                if (!itemData) {
+                    alert('Item não encontrado');
+                    return;
+                }
+                
+                document.getElementById('modalTitle').textContent = `Editar ${getTabName()}`;
+                document.getElementById('formModal').classList.remove('hidden');
+                renderForm();
+                
+                // Preencher campos após renderizar
+                setTimeout(() => {
+                    Object.keys(itemData).forEach(key => {
+                        const el = document.getElementById(key);
+                        if (el) {
+                            if (key === 'temas' && Array.isArray(itemData[key])) {
+                                el.value = itemData[key].join(', ');
+                            } else if (key === 'data' && itemData[key]) {
+                                el.value = itemData[key];
+                            } else {
+                                el.value = itemData[key] || '';
+                            }
+                        }
+                    });
+                }, 50);
+            } catch (error) {
+                console.error('Erro ao editar:', error);
+                alert('Erro ao carregar dados para edição');
+            }
         }
 
         window.deleteItem = async (id) => {
+            if (!currentUser) {
+                alert('Faça login para excluir');
+                return;
+            }
             if (!confirm('Tem certeza que deseja excluir?')) return;
             const colName = collections[currentTab];
-            await deleteDoc(doc(db, colName, id));
+            try {
+                await deleteDoc(doc(db, colName, id));
+            } catch (error) {
+                console.error('Erro ao excluir:', error);
+                alert('Erro ao excluir: ' + error.message);
+            }
         }
 
         window.saveItem = async (e) => {
             e.preventDefault();
+            if (!currentUser) {
+                alert('Faça login para salvar');
+                return;
+            }
+            
             const colName = collections[currentTab];
             const formData = new FormData(e.target);
             const data = {};
@@ -288,23 +427,30 @@
                     await addDoc(collection(db, colName), data);
                 }
                 closeModal('formModal');
+                editId = null;
             } catch (error) {
+                console.error('Erro ao salvar:', error);
                 alert('Erro ao salvar: ' + error.message);
             }
         }
 
         window.searchTable = () => {
-            const input = document.getElementById('searchInput').value.toLowerCase();
+            const input = document.getElementById('searchInput');
+            if (!input) return;
+            const filter = input.value.toLowerCase();
             const rows = document.querySelectorAll(`#tbody-${currentTab} tr`);
             rows.forEach(row => {
                 const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(input)? '' : 'none';
+                row.style.display = text.includes(filter) ? '' : 'none';
             });
         }
 
         window.openLoginModal = () => {
             document.getElementById('loginModal').classList.remove('hidden');
         }
+        
+        // Inicializar UI
+        updateUI();
     </script>
 </head>
 <body class="bg-slate-50">
@@ -416,11 +562,11 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">Email</label>
-                    <input type="email" id="loginEmail" autocomplete="username" required class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="seu@email.com">
+                    <input type="email" id="loginEmail" autocomplete="username" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="seu@email.com">
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Senha</label>
-                    <input type="password" id="loginPassword" autocomplete="current-password" required class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="••••••••">
+                    <input type="password" id="loginPassword" autocomplete="current-password" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="••••••••">
                 </div>
                 <div class="flex gap-2 pt-2">
                     <button onclick="login()" class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Entrar</button>
