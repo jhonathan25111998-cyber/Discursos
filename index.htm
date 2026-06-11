@@ -2,158 +2,24 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Controle de Discursos Públicos - Samas</title>
+    <title>Importar Oradores Visitantes</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
-        @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-    </style>
 </head>
-<body class="bg-slate-50">
-    <div class="min-h-screen">
-        <header class="bg-white shadow-sm border-b sticky top-0 z-10">
-            <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h1 class="text-2xl font-bold text-slate-900">Controle de Discursos Públicos</h1>
-                        <p class="text-sm text-slate-600 mt-1">Congregação São Mateus do Sul</p>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <span id="userEmail" class="text-sm text-slate-600"></span>
-                        <button id="loginBtn" onclick="openLoginModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Entrar</button>
-                        <button id="logoutBtn" onclick="logout()" class="hidden px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 text-sm font-medium">Sair</button>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <main class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-            <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
-                <div class="flex flex-wrap gap-2 mb-4">
-                    <button id="tab-visitantes" onclick="switchTab('visitantes')" class="tab-btn px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">Oradores Visitantes</button>
-                    <button id="tab-enviados" onclick="switchTab('enviados')" class="tab-btn px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">Oradores Enviados</button>
-                    <button id="tab-temas" onclick="switchTab('temas')" class="tab-btn px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Controle de Temas</button>
-                    <button id="tab-oradores" onclick="switchTab('oradores')" class="tab-btn px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">Oradores Samas Temas</button>
-                </div>
-                
-                <!-- Filtros para Temas -->
-                <div id="filtrosTemas" class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
-                    <div class="flex gap-2">
-                        <button onclick="navegarMesTemas(-1)" class="px-3 py-2 bg-slate-200 rounded-lg text-sm">◀</button>
-                        <button onclick="resetarMesTemas()" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm flex-1">📅 Mês Atual</button>
-                        <button onclick="navegarMesTemas(1)" class="px-3 py-2 bg-slate-200 rounded-lg text-sm">▶</button>
-                    </div>
-                    <div>
-                        <select id="ordenacaoTemas" onchange="ordenarTemas()" class="w-full px-3 py-2 border rounded-lg text-sm">
-                            <option value="numeroAsc">🔢 Número (1 ao 197)</option>
-                            <option value="numeroDesc">🔢 Número (197 ao 1)</option>
-                            <option value="maisUsados">📊 Mais usados primeiro</option>
-                            <option value="menosUsados">📊 Menos usados primeiro</option>
-                        </select>
-                    </div>
-                    <div>
-                        <select id="filtroUsoTemas" onchange="ordenarTemas()" class="w-full px-3 py-2 border rounded-lg text-sm">
-                            <option value="todos">📋 Todos os temas</option>
-                            <option value="nuncaUsados">🆕 Nunca usados (0)</option>
-                            <option value="poucoUsados">⚠️ Pouco usados (1-2)</option>
-                            <option value="muitoUsados">🔥 Muito usados (3+)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <input type="text" id="searchTemas" onkeyup="filtrarTemas()" placeholder="Buscar tema..." class="w-full px-3 py-2 border rounded-lg text-sm">
-                    </div>
-                    <div>
-                        <button id="addBtn" onclick="openModal()" class="hidden w-full px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium">+ Adicionar</button>
-                    </div>
-                </div>
-
-                <!-- Filtros para Visitantes/Enviados -->
-                <div id="filtrosVisitantes" class="hidden grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-                    <div class="flex gap-2">
-                        <button onclick="navegarMes(-1)" class="px-3 py-2 bg-slate-200 rounded-lg text-sm">◀ Mês Ant.</button>
-                        <button onclick="resetarMes()" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm flex-1">📅 Mês Atual</button>
-                        <button onclick="navegarMes(1)" class="px-3 py-2 bg-slate-200 rounded-lg text-sm">Mês Seg. ▶</button>
-                    </div>
-                    <div>
-                        <select id="ordenacao" onchange="ordenarDados()" class="w-full px-3 py-2 border rounded-lg text-sm">
-                            <option value="asc">📅 Data (crescente)</option>
-                            <option value="desc">📅 Data (decrescente)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Buscar..." class="w-full px-3 py-2 border rounded-lg text-sm">
-                    </div>
-                    <div>
-                        <button id="addBtnVisitantes" onclick="openModal()" class="hidden w-full px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium">+ Adicionar</button>
-                    </div>
-                </div>
-                
-                <div class="flex justify-between items-center">
-                    <div id="statusInfo" class="text-sm text-slate-500"></div>
-                    <button onclick="removerDuplicatas()" class="text-red-600 hover:text-red-800 text-sm">🧹 Remover Duplicatas</button>
-                </div>
-            </div>
-
-            <!-- Tabela de Temas -->
-            <div id="content-temas" class="tab-content bg-white rounded-lg shadow-sm overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-slate-100 border-b">
-                            <tr><th class="px-4 py-3 text-left w-16">Nº</th><th class="px-4 py-3 text-left">Título</th><th class="px-4 py-3 text-center w-24">Usos</th><th class="px-4 py-3 text-left">Obs</th><th class="px-4 py-3 text-right w-32">Ações</th></tr>
-                        </thead>
-                        <tbody id="tbody-temas">...</tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Tabela de Visitantes -->
-            <div id="content-visitantes" class="tab-content hidden bg-white rounded-lg shadow-sm overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-slate-100 border-b">
-                            <tr><th class="px-4 py-3 text-left">Data</th><th class="px-4 py-3 text-left">Orador</th><th class="px-4 py-3 text-left">Congregação</th><th class="px-4 py-3 text-left">Tema</th><th class="px-4 py-3 text-left">Obs</th><th class="px-4 py-3 text-right">Ações</th></tr>
-                        </thead>
-                        <tbody id="tbody-visitantes">...</tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Tabela de Enviados -->
-            <div id="content-enviados" class="tab-content hidden bg-white rounded-lg shadow-sm overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-slate-100 border-b">
-                            <tr><th class="px-4 py-3 text-left">Data</th><th class="px-4 py-3 text-left">Orador</th><th class="px-4 py-3 text-left">Congregação</th><th class="px-4 py-3 text-left">Tema</th><th class="px-4 py-3 text-left">Obs</th><th class="px-4 py-3 text-right">Ações</th></tr>
-                        </thead>
-                        <tbody id="tbody-enviados">...</tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Tabela de Oradores Locais -->
-            <div id="content-oradores" class="tab-content hidden bg-white rounded-lg shadow-sm overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-slate-100 border-b">
-                            <tr><th class="px-4 py-3 text-left">Nome</th><th class="px-4 py-3 text-left">Temas</th><th class="px-4 py-3 text-left">Obs</th><th class="px-4 py-3 text-right">Ações</th></tr>
-                        </thead>
-                        <tbody id="tbody-oradores">...</tbody>
-                    </table>
-                </div>
-            </div>
-        </main>
+<body class="bg-slate-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h1 class="text-2xl font-bold mb-4">📥 Importar Oradores Visitantes</h1>
+            <textarea id="dados" rows="15" class="w-full border rounded-lg p-3 font-mono text-sm mb-4" placeholder="Cole os dados limpos aqui..."></textarea>
+            <button onclick="importar()" class="bg-green-600 text-white px-6 py-2 rounded-lg">🚀 Importar</button>
+            <div id="resultado" class="mt-4 hidden"></div>
+        </div>
     </div>
-
-    <div id="loginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"><div class="bg-white rounded-lg max-w-md w-full p-6"><h2 class="text-xl font-bold mb-4">Entrar</h2><div><input type="email" id="loginEmail" placeholder="Email" class="w-full border rounded-lg p-2 mb-3"><input type="password" id="loginPassword" placeholder="Senha" class="w-full border rounded-lg p-2 mb-3"><button onclick="login()" class="w-full bg-blue-600 text-white py-2 rounded-lg">Entrar</button><button onclick="closeModal('loginModal')" class="w-full mt-2 bg-slate-200 py-2 rounded-lg">Cancelar</button></div></div></div>
-
-    <div id="formModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"><div class="bg-white rounded-lg max-w-2xl w-full p-6"><h2 id="modalTitle" class="text-xl font-bold mb-4">Adicionar</h2><form id="itemForm" onsubmit="saveItem(event)"><div id="formFields"></div><div class="flex gap-2 mt-4"><button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded-lg">Salvar</button><button type="button" onclick="closeModal('formModal')" class="flex-1 bg-slate-200 py-2 rounded-lg">Cancelar</button></div></form></div></div>
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, writeBatch } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-
+        import { getFirestore, collection, addDoc, getDocs, writeBatch, query, where } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        
         const firebaseConfig = {
             apiKey: "AIzaSyDITvwMh4u-IA9gNht1WTlX6jxUBPj7c0I",
             authDomain: "discursos-6903f.firebaseapp.com",
@@ -166,198 +32,62 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-
-        let currentUser = null;
-        let currentTab = 'temas';
-        let editId = null;
-        let unsubscribeSnapshot = null;
-        let dadosTemas = [];
-        let dadosVisitantes = [];
-        let dadosEnviados = [];
-        let dadosOradores = [];
-        let dadosFiltrados = [];
-        let mesAtual = new Date();
-
-        onAuthStateChanged(auth, async (user) => {
-            currentUser = user;
-            updateUI();
-            if (user) {
-                await Promise.all([
-                    carregarTemas(),
-                    carregarVisitantes(),
-                    carregarEnviados(),
-                    carregarOradores()
-                ]);
-            }
+        
+        let usuarioLogado = false;
+        
+        onAuthStateChanged(auth, (user) => {
+            usuarioLogado = !!user;
+            if(!user) alert('⚠️ Faça login no sistema principal primeiro!');
         });
-
-        function updateUI() {
-            document.getElementById('loginBtn').classList.toggle('hidden', currentUser);
-            document.getElementById('logoutBtn').classList.toggle('hidden', !currentUser);
-            const btns = ['addBtn', 'addBtnVisitantes'];
-            btns.forEach(id => {
-                const btn = document.getElementById(id);
-                if(btn) btn.classList.toggle('hidden', !currentUser);
-            });
-            if(currentUser) document.getElementById('userEmail').textContent = currentUser.email;
-        }
-
-        window.login = async () => {
-            try {
-                await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
-                closeModal('loginModal');
-            } catch(e) { alert('Erro: '+e.message); }
-        };
         
-        window.logout = async () => { await signOut(auth); if(unsubscribeSnapshot) unsubscribeSnapshot(); };
-        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
-        window.openLoginModal = () => document.getElementById('loginModal').classList.remove('hidden');
-
-        // ========== TEMAS ==========
-        async function carregarTemas() {
-            const snapshot = await getDocs(collection(db, 'temas'));
-            dadosTemas = [];
-            snapshot.forEach(doc => dadosTemas.push({ id: doc.id, ...doc.data() }));
+        window.importar = async () => {
+            if(!usuarioLogado) { alert('Faça login primeiro!'); return; }
             
-            const visitantesSnap = await getDocs(collection(db, 'visitantes'));
-            const enviadosSnap = await getDocs(collection(db, 'enviados'));
-            const contagem = {};
-            visitantesSnap.forEach(doc => { const num = doc.data().temaNumero; if(num) contagem[num] = (contagem[num] || 0) + 1; });
-            enviadosSnap.forEach(doc => { const num = doc.data().temaNumero; if(num) contagem[num] = (contagem[num] || 0) + 1; });
+            const texto = document.getElementById('dados').value;
+            if(!texto.trim()) { alert('Cole os dados!'); return; }
             
-            for(const tema of dadosTemas) tema.usos = contagem[tema.numero] || 0;
-            ordenarTemas();
-        }
-
-        window.ordenarTemas = () => {
-            const ordem = document.getElementById('ordenacaoTemas').value;
-            const filtroUso = document.getElementById('filtroUsoTemas').value;
-            let temas = [...dadosTemas];
-            if(filtroUso === 'nuncaUsados') temas = temas.filter(t => (t.usos || 0) === 0);
-            else if(filtroUso === 'poucoUsados') temas = temas.filter(t => (t.usos || 0) >= 1 && (t.usos || 0) <= 2);
-            else if(filtroUso === 'muitoUsados') temas = temas.filter(t => (t.usos || 0) >= 3);
-            if(ordem === 'numeroAsc') temas.sort((a,b) => (parseInt(a.numero)||0) - (parseInt(b.numero)||0));
-            else if(ordem === 'numeroDesc') temas.sort((a,b) => (parseInt(b.numero)||0) - (parseInt(a.numero)||0));
-            else if(ordem === 'maisUsados') temas.sort((a,b) => (b.usos||0) - (a.usos||0));
-            else if(ordem === 'menosUsados') temas.sort((a,b) => (a.usos||0) - (b.usos||0));
+            const linhas = texto.split('\n').filter(l => l.trim());
+            if(linhas.length < 2) { alert('Dados insuficientes'); return; }
             
-            const tbody = document.getElementById('tbody-temas');
-            tbody.innerHTML = temas.map(item => `<tr class="border-b hover:bg-slate-50"><td class="px-4 py-3 font-medium">${item.numero || ''}</td><td class="px-4 py-3">${escapeHtml(item.titulo || '')}</td><td class="px-4 py-3 text-center"><span class="${item.usos === 0 ? 'bg-gray-100' : item.usos <= 2 ? 'bg-yellow-100' : 'bg-green-100'} px-3 py-1 rounded-full text-sm font-semibold">${item.usos || 0} uso${item.usos !== 1 ? 's' : ''}</span></td><td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td><td class="px-4 py-3 text-right">${currentUser ? `<button onclick="editItem('${item.id}')" class="text-blue-600 hover:text-blue-800 mr-3 text-sm">Editar</button><button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-800 text-sm">Excluir</button>` : ''}</td></tr>`).join('');
-            document.getElementById('statusInfo').innerHTML = `📊 ${dadosTemas.length} temas | ${dadosTemas.filter(t=>t.usos>0).length} usados | ${dadosTemas.filter(t=>t.usos===0).length} nunca usados`;
-        };
-        window.filtrarTemas = () => { ordenarTemas(); };
-        window.navegarMesTemas = (delta) => { console.log('navegar', delta); };
-        window.resetarMesTemas = () => { console.log('reset'); };
-
-        // ========== VISITANTES ==========
-        async function carregarVisitantes() {
-            const snapshot = await getDocs(collection(db, 'visitantes'));
-            dadosVisitantes = [];
-            snapshot.forEach(doc => dadosVisitantes.push({ id: doc.id, ...doc.data() }));
-            filtrarVisitantesPorMes();
-        }
-
-        function filtrarVisitantesPorMes() {
-            const ano = mesAtual.getFullYear(), mes = mesAtual.getMonth() + 1;
-            dadosFiltrados = dadosVisitantes.filter(item => {
-                if(!item.data) return false;
-                let dataObj = parseData(item.data);
-                return dataObj.getFullYear() === ano && (dataObj.getMonth() + 1) === mes;
-            });
-            ordenarDados();
-            document.getElementById('statusInfo').innerHTML = `📅 ${mes.toString().padStart(2,'0')}/${ano} | ${dadosFiltrados.length} discursos`;
-        }
-
-        function parseData(dataStr) {
-            if(!dataStr) return new Date(0);
-            if(dataStr.includes('/')) {
-                let partes = dataStr.split(' ');
-                let dataPartes = partes[0].split('/');
-                let horaPartes = partes[1] ? partes[1].split(':') : [0,0];
-                return new Date(parseInt(dataPartes[2]), parseInt(dataPartes[1])-1, parseInt(dataPartes[0]), parseInt(horaPartes[0])||0, parseInt(horaPartes[1])||0);
+            const dados = [];
+            for(let i = 1; i < linhas.length; i++) {
+                const valores = linhas[i].split('\t');
+                if(valores.length < 4) continue;
+                
+                let data = valores[0]?.trim();
+                let dataFormatada = data;
+                if(data && data.includes('/') && !data.includes(' ')) {
+                    const partes = data.split('/');
+                    if(partes.length === 3) {
+                        dataFormatada = `${partes[2]}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
+                    }
+                }
+                
+                dados.push({
+                    data: dataFormatada,
+                    temaNumero: valores[1]?.trim() || '',
+                    tema: valores[2]?.trim() || '',
+                    orador: valores[3]?.trim() || '',
+                    congregacao: valores[4]?.trim() || '',
+                    obs: valores[5]?.trim() || ''
+                });
             }
-            return new Date(dataStr);
-        }
-
-        window.ordenarDados = () => {
-            let ordem = document.getElementById('ordenacao')?.value || 'asc';
-            dadosFiltrados.sort((a,b) => {
-                if(!a.data) return 1; if(!b.data) return -1;
-                let dataA = parseData(a.data), dataB = parseData(b.data);
-                return ordem === 'asc' ? dataA - dataB : dataB - dataA;
-            });
-            renderizarVisitantes();
-        };
-
-        function renderizarVisitantes() {
-            const tbody = document.getElementById('tbody-visitantes');
-            tbody.innerHTML = dadosFiltrados.map(item => `<tr class="border-b hover:bg-slate-50"><td class="px-4 py-3">${formatarData(item.data)}</td><td class="px-4 py-3 font-medium">${escapeHtml(item.orador || '')}</td><td class="px-4 py-3">${escapeHtml(item.congregacao || '')}</td><td class="px-4 py-3">${escapeHtml(item.tema || '')}</td><td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td><td class="px-4 py-3 text-right">${currentUser ? `<button onclick="editItem('${item.id}')" class="text-blue-600 hover:text-blue-800 mr-3 text-sm">Editar</button><button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-800 text-sm">Excluir</button>` : ''}</td></tr>`).join('');
-        }
-
-        function formatarData(dataStr) {
-            if(!dataStr) return '';
-            if(dataStr.includes('/')) return dataStr;
-            let d = new Date(dataStr);
-            return d.toLocaleDateString('pt-BR');
-        }
-
-        // ========== ENVIADOS ==========
-        async function carregarEnviados() {
-            const snapshot = await getDocs(collection(db, 'enviados'));
-            dadosEnviados = [];
-            snapshot.forEach(doc => dadosEnviados.push({ id: doc.id, ...doc.data() }));
-            filtrarEnviadosPorMes();
-        }
-
-        function filtrarEnviadosPorMes() {
-            const ano = mesAtual.getFullYear(), mes = mesAtual.getMonth() + 1;
-            dadosFiltrados = dadosEnviados.filter(item => {
-                if(!item.data) return false;
-                let dataObj = parseData(item.data);
-                return dataObj.getFullYear() === ano && (dataObj.getMonth() + 1) === mes;
-            });
-            ordenarDados();
-        }
-
-        // ========== ORADORES ==========
-        async function carregarOradores() {
-            const snapshot = await getDocs(collection(db, 'oradoresLocais'));
-            dadosOradores = [];
-            snapshot.forEach(doc => dadosOradores.push({ id: doc.id, ...doc.data() }));
-            renderizarOradores();
-        }
-
-        function renderizarOradores() {
-            const tbody = document.getElementById('tbody-oradores');
-            tbody.innerHTML = dadosOradores.map(item => `<tr class="border-b hover:bg-slate-50"><td class="px-4 py-3 font-medium">${escapeHtml(item.nome || '')}</td><td class="px-4 py-3 text-sm">${escapeHtml(Array.isArray(item.temas) ? item.temas.join(', ') : item.temas || '')}</td><td class="px-4 py-3 text-sm">${escapeHtml(item.obs || '')}</td><td class="px-4 py-3 text-right">${currentUser ? `<button onclick="editItem('${item.id}')" class="text-blue-600 hover:text-blue-800 mr-3 text-sm">Editar</button><button onclick="deleteItem('${item.id}')" class="text-red-600 hover:text-red-800 text-sm">Excluir</button>` : ''}</td></tr>`).join('');
-        }
-
-        // ========== CONTROLE DE ABAS ==========
-        window.switchTab = (tab) => {
-            currentTab = tab;
-            mesAtual = new Date();
-            document.querySelectorAll('.tab-btn').forEach(btn => { btn.classList.remove('bg-blue-600','text-white'); btn.classList.add('bg-slate-200','text-slate-700'); });
-            document.getElementById(`tab-${tab}`).classList.remove('bg-slate-200','text-slate-700'); document.getElementById(`tab-${tab}`).classList.add('bg-blue-600','text-white');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); document.getElementById(`content-${tab}`).classList.remove('hidden');
-            document.getElementById('filtrosTemas').classList.toggle('hidden', tab !== 'temas');
-            document.getElementById('filtrosVisitantes').classList.toggle('hidden', tab === 'temas');
             
-            if(tab === 'visitantes') filtrarVisitantesPorMes();
-            else if(tab === 'enviados') filtrarEnviadosPorMes();
-            else if(tab === 'oradores') renderizarOradores();
-            else if(tab === 'temas') ordenarTemas();
+            if(dados.length === 0) { alert('Nenhum dado válido'); return; }
+            
+            let sucessos = 0;
+            for(const item of dados) {
+                if(!item.orador) continue;
+                try {
+                    await addDoc(collection(db, 'visitantes'), item);
+                    sucessos++;
+                } catch(e) { console.error(e); }
+            }
+            
+            document.getElementById('resultado').innerHTML = `<div class="bg-green-100 p-3 rounded-lg">✅ ${sucessos} registros importados!</div>`;
+            document.getElementById('resultado').classList.remove('hidden');
+            alert(`${sucessos} Oradores Visitantes importados! Atualize o sistema principal.`);
         };
-
-        window.navegarMes = (delta) => { mesAtual.setMonth(mesAtual.getMonth() + delta); if(currentTab === 'visitantes') filtrarVisitantesPorMes(); else if(currentTab === 'enviados') filtrarEnviadosPorMes(); };
-        window.resetarMes = () => { mesAtual = new Date(); if(currentTab === 'visitantes') filtrarVisitantesPorMes(); else if(currentTab === 'enviados') filtrarEnviadosPorMes(); };
-        window.searchTable = () => { const filtro = document.getElementById('searchInput')?.value.toLowerCase() || ''; const rows = document.querySelectorAll(`#tbody-${currentTab} tr`); rows.forEach(row => row.style.display = row.textContent.toLowerCase().includes(filtro) ? '' : 'none'); };
-        window.removerDuplicatas = () => { alert('Use o importador para dados limpos'); };
-        window.openModal = () => { alert('Adicionar via importador por enquanto'); };
-        window.editItem = (id) => { alert('Editar: '+id); };
-        window.deleteItem = async (id) => { if(confirm('Excluir?')) { let col = currentTab === 'visitantes' ? 'visitantes' : currentTab === 'enviados' ? 'enviados' : currentTab === 'temas' ? 'temas' : 'oradoresLocais'; await deleteDoc(doc(db, col, id)); if(currentTab === 'temas') carregarTemas(); else if(currentTab === 'visitantes') carregarVisitantes(); else if(currentTab === 'enviados') carregarEnviados(); else carregarOradores(); } };
-        window.saveItem = (e) => { e.preventDefault(); };
-        
-        function escapeHtml(t) { if(!t) return ''; const div = document.createElement('div'); div.textContent = t; return div.innerHTML; }
     </script>
 </body>
 </html>
